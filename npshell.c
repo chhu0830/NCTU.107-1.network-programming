@@ -119,7 +119,7 @@ int main(int argc, const char *argv[], const char *envp[])
 
     if (filename) {
       close(output);
-      output = open(filename, O_WRONLY|O_CREAT, 0644);
+      output = open(filename, O_WRONLY|O_TRUNC|O_CREAT, 0644);
     }
     while (status == 0 && num == 0 && (len = read(input, buf, MAX_INPUT_LENGTH))) {
       write(output, buf, len);
