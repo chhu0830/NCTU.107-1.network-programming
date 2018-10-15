@@ -104,7 +104,9 @@ int main(int argc, const char *argv[], const char *envp[])
       argv_ = exp.we_wordv;
 
       if (strcmp(argv_[0], "printenv") == 0) {
-        printf("%s\n", getenv(argv_[1]));
+        if (ptr = getenv(argv_[1])) {
+          printf("%s\n", ptr);
+        }
       } else if (strcmp(argv_[0], "setenv") == 0) {
         setenv(argv_[1], argv_[2], 1);
       } else if (strcmp(argv_[0], "exit") == 0) {
