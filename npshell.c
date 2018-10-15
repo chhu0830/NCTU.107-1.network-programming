@@ -94,10 +94,6 @@ int main(int argc, const char *argv[], const char *envp[])
         *ptr = 0;
         filename = ptr + 2;
       }
-      if (isdigit(command[0]) && sscanf(command, "%d", &num)) {
-        push(input, np, num);
-        break;
-      }
 
       wordexp(command, &exp, 0);
       argc_ = exp.we_wordc;
@@ -113,6 +109,11 @@ int main(int argc, const char *argv[], const char *envp[])
         return 0;
       } else {
         status = call(argv_, envp, input, p && bak[p-buf-1] == '!');
+      }
+
+      if (p && isdigit(p[0]) && sscanf(p, "%d", &num)) {
+        push(input, np, num);
+        break;
       }
     }
 
