@@ -72,6 +72,24 @@ void parse_args(struct PROCESS *process)
   }
 }
 
+
+int build_in(struct CMD *cmd)
+{
+  char *ptr;
+  if (strcmp(cmd->argv[0], "exit") == 0) {
+    exit(0);
+  } else if (strcmp(cmd->argv[0], "setenv") == 0) {
+    setenv(cmd->argv[1], cmd->argv[2], 1);
+  } else if (strcmp(cmd->argv[0], "printenv") == 0) {
+    if (ptr = getenv(cmd->argv[1])) {
+      printf("%s\n", ptr);
+    }
+  } else {
+    return 0;
+  }
+  return 1;
+}
+
 void set_io(struct PROCESS *process, int (*fd)[2])
 {
   if (fd[0][0]) {
@@ -156,14 +174,17 @@ int main(int argc, const char *argv[])
     buf[strcspn(buf, "\n\r")] = 0;
     if (buf[0] == 0) continue;
 
-    char filename[MAX_FILENAME_LENGTH];
+    char filename[MAX_FILENAME_LENGTH], *ptr;
     struct PROCESS process;
     memset(&process, 0, sizeof(process));
 
     parse_pipe(&process, buf);
     parse_args(&process);
-    set_io(&process, fd);
-    exec_cmds(&process);
+
+    if (!build_in(&process.cmds[0])) {
+      set_io(&process, fd);
+      exec_cmds(&process);
+    }
     decrease(fd);
   }
 
