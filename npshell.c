@@ -3,24 +3,25 @@
 #include <string.h>
 #include <wordexp.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #define MAX_COMMAND_LENGTH 256
 #define MAX_INPUT_LENGTH 65536
 #define MAX_PIPE_NUM 1024
 #define UNKNOWN_COMMAND_ERROR -1
 
-int call(const char *argv[], const char *envp[], int input, int error)
+int call(const char *argv[], int input, int error)
 {
   int pfd[2], pid = 0, status;
 
   if (pipe(pfd) < 0) return -1;
   if ((pid = fork()) < 0) return -1;
   else if (pid == 0) {
-    dup2(input, 0);
-    dup2(pfd[1], 1);
+    dup2(input, STDIN_FILENO);
+    dup2(pfd[1], STDOUT_FILENO);
 
-    if (error) dup2(pfd[1], 2);
-    if (execvpe(argv[0], argv, envp) == -1) {
+    if (error) dup2(pfd[1], STDERR_FILENO);
+    if (execvp(argv[0], argv) == -1) {
       fprintf(stderr, "Unknown command: [%s].\n", argv[0]);
       exit(UNKNOWN_COMMAND_ERROR);
     }
@@ -67,7 +68,7 @@ int pop(int input, int (*np)[2])
 
 
 
-int main(int argc, const char *argv[], const char *envp[])
+int main(int argc, const char *argv[])
 {
   setbuf(stdout, NULL);
   setenv("PATH", "bin:.", 1);
@@ -84,7 +85,7 @@ int main(int argc, const char *argv[], const char *envp[])
     if (buf[0] == 0) continue;
 
     char *p = buf, *command, *filename = NULL, *ptr;
-    int input = dup(0), output = dup(1), len, status = -1, num = 0;
+    int input = dup(STDIN_FILENO), output = dup(STDOUT_FILENO), len, status = -1, num = 0;
 
     strcpy(bak, buf);
     pop(input, np);
@@ -100,15 +101,13 @@ int main(int argc, const char *argv[], const char *envp[])
       argv_ = exp.we_wordv;
 
       if (strcmp(argv_[0], "printenv") == 0) {
-        if (ptr = getenv(argv_[1])) {
-          printf("%s\n", ptr);
-        }
+        if (ptr = getenv(argv_[1])) printf("%s\n", ptr);
       } else if (strcmp(argv_[0], "setenv") == 0) {
         setenv(argv_[1], argv_[2], 1);
       } else if (strcmp(argv_[0], "exit") == 0) {
         return 0;
       } else {
-        status = call(argv_, envp, input, p && bak[p-buf-1] == '!');
+        status = call(argv_, input, p && bak[p-buf-1] == '!');
       }
 
       if (p && isdigit(p[0]) && sscanf(p, "%d", &num)) {
