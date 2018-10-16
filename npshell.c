@@ -49,7 +49,6 @@ void parse_args(struct PROCESS *process)
   if (ptr = strchr(cmd, '>')) {
     *ptr = '\0';
     strcpy(process->filename, ptr+2);
-    process->output = open(process->filename, O_WRONLY|O_TRUNC|O_CREAT, 0644);
   } else if (ptr = strchr(cmd, '!')) {
     *ptr = '\0';
     sscanf(ptr+1, "%d", &process->num);
@@ -73,6 +72,27 @@ void parse_args(struct PROCESS *process)
   }
 }
 
+void set_io(struct PROCESS *process, int (*fd)[2])
+{
+  if (fd[0][0]) {
+    process->input = fd[0][0];
+    close(fd[0][1]);
+  } else {
+    process->input = dup(0);
+  }
+
+  if (process->filename[0]) {
+    process->output = open(process->filename, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+  } else if (process->num) {
+    if (fd[process->num][1] == 0) {
+      while (pipe(fd[process->num]) < 0);
+    }
+    process->output = dup(fd[process->num][1]);
+  } else {
+    process->output = dup(1);
+  }
+}
+
 void exec_cmds(struct PROCESS *process)
 {
   int pid;
@@ -83,10 +103,19 @@ void exec_cmds(struct PROCESS *process)
     while (pipe(process->cmds[i].fd) < 0);
     while ((pid = fork()) < 0);
     if (pid == 0) {
-      if (i == 0) dup2(process->input, 0);
-      else dup2(process->cmds[i-1].fd[0], 0);
-      if (i == process->count - 1) dup2(process->output, 1);
-      else dup2(process->cmds[i].fd[1], 1);
+      if (i == 0) {
+        dup2(process->input, 0);
+      } else {
+        dup2(process->cmds[i-1].fd[0], 0);
+      }
+      if (i == process->count - 1) {
+        dup2(process->output, 1);
+        if (process->error) {
+          dup2(process->output, 2);
+        }
+      } else {
+        dup2(process->cmds[i].fd[1], 1);
+      }
 
       write(fd[1], "0", 1);
       if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
@@ -106,12 +135,21 @@ void exec_cmds(struct PROCESS *process)
   close(fd[1]);
 }
 
+void decrease(int (*fd)[2])
+{
+  for (int i = 1; i < MAX_PIPE_LATE; i++) {
+    fd[i-1][0] = fd[i][0];
+    fd[i-1][1] = fd[i][1];
+  }
+}
+
 int main(int argc, const char *argv[])
 {
   setbuf(stdout, NULL);
   setenv("PATH", "bin:.", 1);
   signal(SIGCHLD, proc_exit);
 
+  int fd[MAX_PIPE_LATE][2] = {};
   char buf[MAX_INPUT_LENGTH];
 
   while (fputs("% ", stdout), fgets(buf, MAX_INPUT_LENGTH, stdin)) {
@@ -121,13 +159,12 @@ int main(int argc, const char *argv[])
     char filename[MAX_FILENAME_LENGTH];
     struct PROCESS process;
     memset(&process, 0, sizeof(process));
-    process.input = dup(0);
-    process.output = dup(1);
 
     parse_pipe(&process, buf);
     parse_args(&process);
+    set_io(&process, fd);
     exec_cmds(&process);
-
+    decrease(fd);
   }
 
   return 0;
