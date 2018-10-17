@@ -26,10 +26,9 @@ struct PROCESS {
 };
 
 
-void proc_exit(int signal)
+void proc_exit()
 {
-  int status;
-  wait(&status);
+  wait(NULL);
 }
 
 void parse_pipe(struct PROCESS *process, char *buf)
@@ -149,6 +148,7 @@ void exec_cmds(struct PROCESS *process)
       close(process->cmds[i].fd[1]);
     }
   } 
+  waitpid(-1, NULL, 0);
   close(fd[0]);
   close(fd[1]);
 }
