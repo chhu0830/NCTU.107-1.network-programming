@@ -5,13 +5,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <ctype.h>
+#include <sys/wait.h>
 
 #define MAX_COMMAND_LENGTH 256
 #define MAX_INPUT_LENGTH 65536
 #define MAX_PIPE_NUM 1024
 #define MAX_PIPE_LATE 1024
 #define MAX_FILENAME_LENGTH 1024
-#define UNKNOWN_COMMAND_ERROR -1
+#define UNKNOWN_COMMAND_ERRNO -1
 
 struct CMD {
   char cmd[MAX_COMMAND_LENGTH];
@@ -57,8 +59,8 @@ void parse_args(struct PROCESS *process)
     process->count -= 1;
   }
 
-  wordexp_t exp;
   for (int i = 0; i < process->count; i++) {
+    wordexp_t exp;
     cmd = process->cmds[i].cmd;
     wordexp(cmd, &exp, 0);
 
@@ -68,6 +70,7 @@ void parse_args(struct PROCESS *process)
     for (int j = 0; j < exp.we_wordc; j++) {
       process->cmds[i].argv[j] = strdup(exp.we_wordv[j]);
     }
+    wordfree(&exp);
   }
 }
 
@@ -137,7 +140,7 @@ void exec_cmds(struct PROCESS *process)
       write(fd[1], "0", 1);
       if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
         fprintf(stderr, "Unknown command: [%s].\n", process->cmds[i].argv[0]);
-        exit(UNKNOWN_COMMAND_ERROR);
+        exit(UNKNOWN_COMMAND_ERRNO);
       }
       exit(0);
     } else {
@@ -158,7 +161,7 @@ void exec_cmds(struct PROCESS *process)
 void free_process(struct PROCESS *process)
 {
   for (int i = 0; i < process->count; i++) {
-    for (int j = 0; j < process->cmds[i].argc; i++) {
+    for (int j = 0; j < process->cmds[i].argc; j++) {
       free(process->cmds[i].argv[j]);
     }
     free(process->cmds[i].argv);
@@ -183,10 +186,9 @@ int main(int argc, const char *argv[])
   char buf[MAX_INPUT_LENGTH];
 
   while (fputs("% ", stdout), fgets(buf, MAX_INPUT_LENGTH, stdin)) {
-    buf[strcspn(buf, "\n\r")] = 0;
+    buf[strcspn(buf, "\n\r")] = '\0';
     if (buf[0] == 0) continue;
 
-    char filename[MAX_FILENAME_LENGTH], *ptr;
     struct PROCESS process;
     memset(&process, 0, sizeof(process));
 
@@ -196,6 +198,7 @@ int main(int argc, const char *argv[])
     if (!build_in(&process.cmds[0])) {
       set_io(&process, fd);
       exec_cmds(&process);
+      free_process(&process);
     }
     decrease(fd);
   }
