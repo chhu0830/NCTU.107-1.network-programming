@@ -83,9 +83,6 @@ void set_io(struct PROCESS *process, int (*fd)[2])
 void exec_cmds(struct PROCESS *process)
 {
   int pid;
-  int fd[2];
-  char buf[8];
-  while (pipe(fd) < 0);
   for (int i = 0; i < process->count; i++) {
     while (pipe(process->cmds[i].fd) < 0);
     while ((pid = fork()) < 0);
@@ -103,8 +100,9 @@ void exec_cmds(struct PROCESS *process)
       } else {
         dup2(process->cmds[i].fd[1], 1);
       }
+      close(process->cmds[i].fd[0]);
+      close(process->cmds[i].fd[1]);
 
-      write(fd[1], "0", 1);
       if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
         fprintf(stderr, "Unknown command: [%s].\n", process->cmds[i].argv[0]);
         exit(UNKNOWN_COMMAND_ERRNO);
@@ -112,10 +110,15 @@ void exec_cmds(struct PROCESS *process)
       exit(0);
     } else {
       process->cmds[i].pid = pid;
-      while (read(fd[0], buf, 1) == 0);
-      if (i == 0) close(process->input);
-      else close(process->cmds[i-1].fd[0]);
-      if (i == process->count - 1) close(process->output), close(process->cmds[i].fd[0]);
+      if (i == 0) {
+        close(process->input);
+      } else {
+        close(process->cmds[i-1].fd[0]);
+      }
+      if (i == (process->count - 1)) {
+        close(process->output);
+        close(process->cmds[i].fd[0]);
+      }
       close(process->cmds[i].fd[1]);
     }
   } 
@@ -124,8 +127,6 @@ void exec_cmds(struct PROCESS *process)
       waitpid(process->cmds[i].pid, &status, 0);
     }
   }
-  close(fd[0]);
-  close(fd[1]);
 }
 
 void free_process(struct PROCESS *process)
