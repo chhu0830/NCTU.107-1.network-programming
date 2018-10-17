@@ -9,8 +9,8 @@
 #include <sys/wait.h>
 
 #define MAX_COMMAND_LENGTH 256
-#define MAX_INPUT_LENGTH 65536
-#define MAX_PIPE_NUM 1024
+#define MAX_INPUT_LENGTH 16384
+#define MAX_PIPE_NUM 4096
 #define MAX_PIPE_LATE 1024
 #define MAX_FILENAME_LENGTH 1024
 #define UNKNOWN_COMMAND_ERRNO -1
@@ -65,7 +65,7 @@ void parse_args(struct PROCESS *process)
     wordexp(cmd, &exp, 0);
 
     process->cmds[i].argc = exp.we_wordc;
-    process->cmds[i].argv = malloc(sizeof(char*) * exp.we_wordc);
+    process->cmds[i].argv = calloc(sizeof(char*), (exp.we_wordc+1));
 
     for (int j = 0; j < exp.we_wordc; j++) {
       process->cmds[i].argv[j] = strdup(exp.we_wordv[j]);
