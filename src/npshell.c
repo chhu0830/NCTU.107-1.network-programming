@@ -2,7 +2,8 @@
 
 void proc_exit()
 {
-  wait(NULL);
+  int status;
+  waitpid(-1, &status, WNOHANG);
 }
 
 void npshell(char *buf, int (*fd)[2])

@@ -110,6 +110,7 @@ void exec_cmds(struct PROCESS *process)
       }
       exit(0);
     } else {
+      process->cmds[i].pid = pid;
       while (read(fd[0], buf, 1) == 0);
       if (i == 0) close(process->input);
       else close(process->cmds[i-1].fd[0]);
@@ -117,8 +118,10 @@ void exec_cmds(struct PROCESS *process)
       close(process->cmds[i].fd[1]);
     }
   } 
-  if (process->num == 0 || process->filename[0]) {
-    while (wait(NULL) > 0);
+  if (process->num == 0) {
+    for (int i = 0, status; i < process->count; i++) {
+      waitpid(process->cmds[i].pid, &status, WUNTRACED);
+    }
   }
   close(fd[0]);
   close(fd[1]);

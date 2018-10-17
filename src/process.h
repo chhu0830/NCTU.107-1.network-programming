@@ -18,7 +18,7 @@
 struct CMD {
   char cmd[MAX_COMMAND_LENGTH];
   char **argv;
-  int argc, fd[2];
+  int argc, fd[2], pid;
 };
 
 struct PROCESS {
