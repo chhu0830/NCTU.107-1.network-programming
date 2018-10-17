@@ -3,7 +3,7 @@
 void proc_exit()
 {
   int status;
-  waitpid(-1, &status, WNOHANG);
+  waitpid(-1, &status, 0);
 }
 
 void npshell(char *buf, int (*fd)[2])

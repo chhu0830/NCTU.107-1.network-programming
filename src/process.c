@@ -1,4 +1,5 @@
 #include "process.h"
+
 void parse_pipe(struct PROCESS *process, char *buf)
 {
   int i;
@@ -120,7 +121,7 @@ void exec_cmds(struct PROCESS *process)
   } 
   if (process->num == 0) {
     for (int i = 0, status; i < process->count; i++) {
-      waitpid(process->cmds[i].pid, &status, WUNTRACED);
+      waitpid(process->cmds[i].pid, &status, 0);
     }
   }
   close(fd[0]);
