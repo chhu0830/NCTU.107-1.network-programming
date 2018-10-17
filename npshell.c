@@ -148,9 +148,21 @@ void exec_cmds(struct PROCESS *process)
       close(process->cmds[i].fd[1]);
     }
   } 
-  waitpid(-1, NULL, 0);
+  if (process->num == 0 || process->filename[0]) {
+    while (wait(NULL) > 0);
+  }
   close(fd[0]);
   close(fd[1]);
+}
+
+void free_process(struct PROCESS *process)
+{
+  for (int i = 0; i < process->count; i++) {
+    for (int j = 0; j < process->cmds[i].argc; i++) {
+      free(process->cmds[i].argv[j]);
+    }
+    free(process->cmds[i].argv);
+  }
 }
 
 void decrease(int (*fd)[2])
