@@ -107,6 +107,7 @@ void exec_cmds(struct PROCESS *process, int (*numfd)[2])
       close(process->output);
 
       if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
+        fprintf(stderr, "Unknown command: [%s].\n", process->cmds[i].argv[0]);
         exit(UNKNOWN_COMMAND_ERRNO);
       }
       exit(0);
