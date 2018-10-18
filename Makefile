@@ -15,6 +15,9 @@ $(OUT)/%.o: %.c
 	mkdir -p $(dir $@)
 	$(CC) -c $(CFLAGS) $< -o $@
 
+run: $(EXECUTABLE)
+	./$(EXECUTABLE)
+
 clean:
 	rm -rf $(OUT)
 	rm -f $(EXECUTABLE)
