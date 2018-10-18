@@ -31,6 +31,6 @@ void parse_pipe(struct PROCESS *process, char *buf);
 void parse_args(struct PROCESS *process);
 int build_in(struct CMD *cmd);
 void set_io(struct PROCESS *process, int (*fd)[2]);
-void exec_cmds(struct PROCESS *process);
+void exec_cmds(struct PROCESS *process, int (*fd)[2]);
 void free_process(struct PROCESS *process);
 void decrease(int (*fd)[2]);

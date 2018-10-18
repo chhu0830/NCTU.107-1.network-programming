@@ -80,48 +80,43 @@ void set_io(struct PROCESS *process, int (*fd)[2])
   }
 }
 
-void exec_cmds(struct PROCESS *process)
+void exec_cmds(struct PROCESS *process, int (*fd)[2])
 {
   int pid;
+  const int FST = 0, LST = process->count-1;
+
+  set_io(process, fd);
   for (int i = 0; i < process->count; i++) {
     while (pipe(process->cmds[i].fd) < 0);
-    while ((pid = fork()) < 0);
+    while ((process->cmds[i].pid = pid = fork()) < 0);
     if (pid == 0) {
-      if (i == 0) {
-        dup2(process->input, 0);
-      } else {
-        dup2(process->cmds[i-1].fd[0], 0);
+      dup2(i == FST ? process->input : process->cmds[i-1].fd[0], 0);
+      dup2(i == LST ? process->output : process->cmds[i].fd[1], 1);
+      if (process->error && i == LST) dup2(process->output, 2);
+
+      for (int j = 0; j < MAX_PIPE_LATE; j++) {
+        if (fd[j][0]) close(fd[j][0]);
+        if (fd[j][1]) close(fd[j][1]);
       }
-      if (i == process->count - 1) {
-        dup2(process->output, 1);
-        if (process->error) {
-          dup2(process->output, 2);
-        }
-      } else {
-        dup2(process->cmds[i].fd[1], 1);
-      }
+
+      close(i == FST ? process->input : process->cmds[i-1].fd[0]);
       close(process->cmds[i].fd[0]);
       close(process->cmds[i].fd[1]);
+      close(process->output);
 
       if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
-        fprintf(stderr, "Unknown command: [%s].\n", process->cmds[i].argv[0]);
         exit(UNKNOWN_COMMAND_ERRNO);
       }
       exit(0);
     } else {
-      process->cmds[i].pid = pid;
-      if (i == 0) {
-        close(process->input);
-      } else {
-        close(process->cmds[i-1].fd[0]);
-      }
-      if (i == (process->count - 1)) {
-        close(process->output);
-        close(process->cmds[i].fd[0]);
-      }
+      close(i == FST ? process->input : process->cmds[i-1].fd[0]);
       close(process->cmds[i].fd[1]);
     }
   } 
+
+  close(process->cmds[LST].fd[0]);
+  close(process->output);
+
   if (process->num == 0) {
     for (int i = 0, status; i < process->count; i++) {
       waitpid(process->cmds[i].pid, &status, 0);

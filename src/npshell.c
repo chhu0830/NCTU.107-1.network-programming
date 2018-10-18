@@ -3,7 +3,7 @@
 void proc_exit()
 {
   int status;
-  waitpid(-1, &status, 0);
+  while (waitpid(-1, &status, WNOHANG) > 0);
 }
 
 void npshell(char *buf, int (*fd)[2])
@@ -15,8 +15,7 @@ void npshell(char *buf, int (*fd)[2])
   parse_args(&process);
 
   if (!build_in(&process.cmds[0])) {
-    set_io(&process, fd);
-    exec_cmds(&process);
+    exec_cmds(&process, fd);
     free_process(&process);
   }
   decrease(fd);
@@ -24,7 +23,7 @@ void npshell(char *buf, int (*fd)[2])
 
 int main()
 {
-  setbuf(stdout, NULL);
+  setvbuf(stdout, NULL, _IONBF, 0);
   setenv("PATH", "bin:.", 1);
   signal(SIGCHLD, proc_exit);
 
