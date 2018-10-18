@@ -59,49 +59,51 @@ int build_in(struct CMD *cmd)
   return 1;
 }
 
-void set_io(struct PROCESS *process, int (*fd)[2])
+void set_io(struct PROCESS *process, int (*numfd)[2])
 {
-  if (fd[0][0]) {
-    process->input = fd[0][0];
-    close(fd[0][1]);
+  for (int i = 1; i < MAX_NUMBERED_PIPE; i++) {
+    numfd[i-1][0] = numfd[i][0];
+    numfd[i-1][1] = numfd[i][1];
+  }
+
+  if (numfd[0][0]) {
+    process->input = numfd[0][0];
+    close(numfd[0][1]);
   } else {
     process->input = dup(0);
   }
 
   if (process->filename[0]) {
-    process->output = open(process->filename, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    process->output = open(process->filename, O_WRONLY|O_TRUNC|O_CREAT, 0666);
   } else if (process->num) {
-    if (fd[process->num][1] == 0) {
-      while (pipe(fd[process->num]) < 0);
+    if (numfd[process->num][1] == 0) {
+      while (pipe(numfd[process->num]) < 0);
     }
-    process->output = dup(fd[process->num][1]);
+    process->output = dup(numfd[process->num][1]);
   } else {
     process->output = dup(1);
   }
 }
 
-void exec_cmds(struct PROCESS *process, int (*fd)[2])
+void exec_cmds(struct PROCESS *process, int (*numfd)[2])
 {
-  int pid;
-  const int FST = 0, LST = process->count-1;
+  set_io(process, numfd);
 
-  set_io(process, fd);
+  int pid, curfd[2], prefd = process->input;
+  const int LST = process->count-1;
+
   for (int i = 0; i < process->count; i++) {
-    while (pipe(process->cmds[i].fd) < 0);
+    while (pipe(curfd) < 0);
     while ((process->cmds[i].pid = pid = fork()) < 0);
     if (pid == 0) {
-      dup2(i == FST ? process->input : process->cmds[i-1].fd[0], 0);
-      dup2(i == LST ? process->output : process->cmds[i].fd[1], 1);
-      if (process->error && i == LST) dup2(process->output, 2);
+      dup2(prefd, 0);
+      dup2((i == LST) ? process->output : curfd[1], 1);
+      if (i == LST && process->error) dup2(process->output, 2);
 
-      for (int j = 0; j < MAX_PIPE_LATE; j++) {
-        if (fd[j][0]) close(fd[j][0]);
-        if (fd[j][1]) close(fd[j][1]);
-      }
-
-      close(i == FST ? process->input : process->cmds[i-1].fd[0]);
-      close(process->cmds[i].fd[0]);
-      close(process->cmds[i].fd[1]);
+      close_numfd(numfd);
+      close(prefd);
+      close(curfd[0]);
+      close(curfd[1]);
       close(process->output);
 
       if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
@@ -109,18 +111,27 @@ void exec_cmds(struct PROCESS *process, int (*fd)[2])
       }
       exit(0);
     } else {
-      close(i == FST ? process->input : process->cmds[i-1].fd[0]);
-      close(process->cmds[i].fd[1]);
+      close(prefd);
+      close(curfd[1]);
+      prefd = curfd[0];
     }
   } 
 
-  close(process->cmds[LST].fd[0]);
+  close(prefd);
   close(process->output);
 
   if (process->num == 0) {
     for (int i = 0, status; i < process->count; i++) {
       waitpid(process->cmds[i].pid, &status, 0);
     }
+  }
+}
+
+void close_numfd(int (*numfd)[2])
+{
+  for (int i = 0; i < MAX_NUMBERED_PIPE; i++) {
+    if (numfd[i][0]) close(numfd[i][0]);
+    if (numfd[i][1]) close(numfd[i][1]);
   }
 }
 
@@ -131,13 +142,5 @@ void free_process(struct PROCESS *process)
       free(process->cmds[i].argv[j]);
     }
     free(process->cmds[i].argv);
-  }
-}
-
-void decrease(int (*fd)[2])
-{
-  for (int i = 1; i < MAX_PIPE_LATE; i++) {
-    fd[i-1][0] = fd[i][0];
-    fd[i-1][1] = fd[i][1];
   }
 }
