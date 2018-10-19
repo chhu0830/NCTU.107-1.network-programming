@@ -4,7 +4,7 @@ CFLAGS      += -std=gnu99 -Wall -Wextra -MMD -MF $@.d
 OUT         := .build
 EXECUTABLE  := npshell
 
-SRCS        := $(shell find src -name "*.c")
+SRCS        := $(wildcard *.c)
 OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=.o))
 DEPS        := $(OBJS:.o=.o.d)
 
