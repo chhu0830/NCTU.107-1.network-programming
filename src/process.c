@@ -35,7 +35,10 @@ int parse_args(struct PROCESS *process)
     cmd = process->cmds[i].cmd;
 
     wordexp(cmd, &exp, 0);
-    if (exp.we_wordc == 0) return -1;
+    if (exp.we_wordc == 0) {
+      wordfree(&exp);
+      return -1;
+    }
 
     process->cmds[i].argc = exp.we_wordc;
     process->cmds[i].argv = calloc(sizeof(char*), (exp.we_wordc+1));
