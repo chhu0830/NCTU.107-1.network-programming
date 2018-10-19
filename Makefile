@@ -1,12 +1,12 @@
-CC 					?= gcc
-CFLAGS 			+= -std=gnu99 -Wall -Wextra -MMD -MF $@.d
+CC          ?= gcc
+CFLAGS      += -std=gnu99 -Wall -Wextra -MMD -MF $@.d
 
-OUT 				:= .build
-EXECUTABLE	:= npshell
+OUT         := .build
+EXECUTABLE  := npshell
 
-SRCS 				:= $(shell find src -name "*.c")
-OBJS 				:= $(addprefix $(OUT)/, $(SRCS:.c=.o))
-DEPS 				:= $(OBJS:.o=.o.d)
+SRCS        := $(shell find src -name "*.c")
+OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=.o))
+DEPS        := $(OBJS:.o=.o.d)
 
 $(EXECUTABLE): $(OBJS) 
 	$(CC) $(OBJS) -o $(EXECUTABLE)
