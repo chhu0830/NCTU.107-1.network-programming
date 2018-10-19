@@ -10,7 +10,7 @@ void parse_pipe(struct PROCESS *process, char *buf)
   process->count = i;
 }
 
-void parse_args(struct PROCESS *process)
+void parse_redirect(struct PROCESS *process)
 {
   char *ptr, *cmd = process->cmds[process->count - 1].cmd;
 
@@ -25,11 +25,17 @@ void parse_args(struct PROCESS *process)
     sscanf(cmd, "%d", &process->num);
     process->count -= 1;
   }
+}
 
+int parse_args(struct PROCESS *process)
+{
+  char *cmd;
   for (int i = 0; i < process->count; i++) {
     wordexp_t exp;
     cmd = process->cmds[i].cmd;
+
     wordexp(cmd, &exp, 0);
+    if (exp.we_wordc == 0) return -1;
 
     process->cmds[i].argc = exp.we_wordc;
     process->cmds[i].argv = calloc(sizeof(char*), (exp.we_wordc+1));
@@ -39,6 +45,7 @@ void parse_args(struct PROCESS *process)
     }
     wordfree(&exp);
   }
+  return 0;
 }
 
 
@@ -61,11 +68,6 @@ int build_in(struct CMD *cmd)
 
 void set_io(struct PROCESS *process, int (*numfd)[2])
 {
-  for (int i = 1; i < MAX_NUMBERED_PIPE; i++) {
-    numfd[i-1][0] = numfd[i][0];
-    numfd[i-1][1] = numfd[i][1];
-  }
-
   if (numfd[0][0]) {
     process->input = numfd[0][0];
     close(numfd[0][1]);
@@ -136,6 +138,14 @@ void close_numfd(int (*numfd)[2])
   }
 }
 
+void move_numfd(int (*numfd)[2])
+{
+  for (int i = 1; i < MAX_NUMBERED_PIPE; i++) {
+    numfd[i-1][0] = numfd[i][0];
+    numfd[i-1][1] = numfd[i][1];
+  }
+}
+
 void free_process(struct PROCESS *process)
 {
   for (int i = 0; i < process->count; i++) {
@@ -145,3 +155,4 @@ void free_process(struct PROCESS *process)
     free(process->cmds[i].argv);
   }
 }
+

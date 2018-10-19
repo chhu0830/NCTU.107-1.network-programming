@@ -28,9 +28,11 @@ struct PROCESS {
 };
 
 void parse_pipe(struct PROCESS*, char*);
-void parse_args(struct PROCESS*);
+void parse_redirect(struct PROCESS*);
+int parse_args(struct PROCESS*);
 int build_in(struct CMD*);
 void set_io(struct PROCESS*, int (*)[2]);
 void exec_cmds(struct PROCESS*, int (*)[2]);
 void close_numfd(int (*)[2]);
+void move_numfd(int (*)[2]);
 void free_process(struct PROCESS*);

@@ -12,12 +12,14 @@ void npshell(char *buf, int (*numfd)[2])
   memset(&process, 0, sizeof(process));
 
   parse_pipe(&process, buf);
-  parse_args(&process);
+  parse_redirect(&process);
+  if (parse_args(&process) < 0) return;
 
   if (!build_in(&process.cmds[0])) {
     exec_cmds(&process, numfd);
     free_process(&process);
   }
+  move_numfd(numfd);
 }
 
 int main()
