@@ -25,7 +25,7 @@ deploy: $(EXECUTABLE)
 
 zip:
 	@rm -rf $(STUDENT_ID) $(STUDENT_ID).zip ; mkdir $(STUDENT_ID)
-	@cp src/* Makefile $(STUDENT_ID)
+	@git ls-files | xargs -i cp {} $(STUDENT_ID)
 	@zip -r $(STUDENT_ID).zip $(STUDENT_ID) ; rm -rf $(STUDENT_ID)
 
 clean:
