@@ -79,10 +79,10 @@ void set_io(struct PROCESS *process, int (*numfd)[2])
   }
 
   if (process->filename[0]) {
-    process->output = open(process->filename, O_WRONLY|O_TRUNC|O_CREAT, 0666);
+    process->output = open(process->filename, O_WRONLY|O_TRUNC|O_CREAT|O_CLOEXEC, 0666);
   } else if (process->num) {
     if (numfd[process->num][1] == 0) {
-      while (pipe(numfd[process->num]) < 0);
+      while (pipe2(numfd[process->num], O_CLOEXEC) < 0);
     }
     process->output = dup(numfd[process->num][1]);
   } else {
@@ -98,18 +98,12 @@ void exec_cmds(struct PROCESS *process, int (*numfd)[2])
   const int LST = process->count-1;
 
   for (int i = 0; i < process->count; i++) {
-    while (pipe(curfd) < 0);
+    while (pipe2(curfd, O_CLOEXEC) < 0);
     while ((process->cmds[i].pid = pid = fork()) < 0);
     if (pid == 0) {
       dup2(prefd, 0);
       dup2((i == LST) ? process->output : curfd[1], 1);
       if (i == LST && process->error) dup2(process->output, 2);
-
-      close_numfd(numfd);
-      close(prefd);
-      close(curfd[0]);
-      close(curfd[1]);
-      close(process->output);
 
       if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
         fprintf(stderr, "Unknown command: [%s].\n", process->cmds[i].argv[0]);
@@ -130,14 +124,6 @@ void exec_cmds(struct PROCESS *process, int (*numfd)[2])
     for (int i = 0, status; i < process->count; i++) {
       waitpid(process->cmds[i].pid, &status, 0);
     }
-  }
-}
-
-void close_numfd(int (*numfd)[2])
-{
-  for (int i = 0; i < MAX_NUMBERED_PIPE; i++) {
-    if (numfd[i][0]) close(numfd[i][0]);
-    if (numfd[i][1]) close(numfd[i][1]);
   }
 }
 
