@@ -18,15 +18,15 @@
 
 
 struct CMD {
-  char cmd[MAX_COMMAND_LENGTH];
-  char **argv;
-  int argc, pid;
+    char cmd[MAX_COMMAND_LENGTH];
+    char **argv;
+    int argc, pid;
 };
 
 struct PROCESS {
-  struct CMD cmds[MAX_PIPE_NUM];
-  int input, output, count, num, error;
-  char filename[MAX_FILENAME_LENGTH];
+    struct CMD cmds[MAX_PIPE_NUM];
+    int input, output, count, num, error;
+    char filename[MAX_FILENAME_LENGTH];
 };
 
 void parse_pipe(struct PROCESS*, char*);
