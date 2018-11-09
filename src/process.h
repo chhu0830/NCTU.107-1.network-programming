@@ -13,15 +13,15 @@ struct CMD {
 
 struct PROCESS {
     struct CMD cmds[MAX_PIPE_NUM];
-    int input, output, count, num, error;
+    int input, output, count, num, error, redirect_error;
     char filename[MAX_FILENAME_LENGTH];
 };
 
-void parse_pipe(struct PROCESS*, char*);
-void parse_redirect(struct PROCESS*);
-int parse_args(struct PROCESS*);
-int build_in(struct CMD*);
-void set_io(struct PROCESS*, int (*)[2]);
-void exec_cmds(struct PROCESS*, int (*)[2]);
-void move_numfd(int (*)[2]);
-void free_process(struct PROCESS*);
+void parse_pipe(struct PROCESS *process, char *buf);
+void parse_redirect(struct PROCESS *process);
+int parse_args(struct PROCESS *process);
+int exec(struct PROCESS *process);
+void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd);
+void shell(struct PROCESS *process);
+void move_numfd(int (*numfd)[2]);
+void free_process(struct PROCESS *process);

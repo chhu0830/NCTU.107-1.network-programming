@@ -29,7 +29,7 @@ void parse_redirect(struct PROCESS *process)
     } else if ((ptr = strchr(cmd, '!'))) {
         *ptr = '\0';
         sscanf(ptr+1, "%d", &process->num);
-        process->error = 1;
+        process->redirect_error = 1;
     } else if (process->count != 1 && isdigit(cmd[0])) {
         char *ptr, *buf = cmd;
         for (int i = 0, num; (ptr = strsep(&buf, "+")); i++) {
@@ -65,30 +65,35 @@ int parse_args(struct PROCESS *process)
 }
 
 
-int build_in(struct CMD *cmd)
+int exec(struct PROCESS *process)
 {
+    struct CMD *cmd = &process->cmds[0];
     char *ptr;
     if (strcmp(cmd->argv[0], "exit") == 0) {
-        exit(0);
+        close(process->input);
+        close(process->output);
+        return -1;
     } else if (strcmp(cmd->argv[0], "setenv") == 0) {
         setenv(cmd->argv[1], cmd->argv[2], 1);
     } else if (strcmp(cmd->argv[0], "printenv") == 0) {
         if ((ptr = getenv(cmd->argv[1]))) {
-            printf("%s\n", ptr);
+            strcat(ptr, "\n");
+            write(process->output, ptr, strlen(ptr));
         }
     } else {
-        return 0;
+        shell(process);
+        free_process(process);
     }
-    return 1;
+    return 0;
 }
 
-void set_io(struct PROCESS *process, int (*numfd)[2])
+void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd)
 {
     if (numfd[0][0]) {
         process->input = numfd[0][0];
         close(numfd[0][1]);
     } else {
-        process->input = dup(0);
+        process->input = dup(sockfd);
     }
 
     if (process->filename[0]) {
@@ -99,14 +104,13 @@ void set_io(struct PROCESS *process, int (*numfd)[2])
         }
         process->output = dup(numfd[process->num][1]);
     } else {
-        process->output = dup(1);
+        process->output = dup(sockfd);
     }
+    process->error = dup(sockfd);
 }
 
-void exec_cmds(struct PROCESS *process, int (*numfd)[2])
+void shell(struct PROCESS *process)
 {
-    set_io(process, numfd);
-
     int pid, curfd[2], prefd = process->input;
     const int LST = process->count-1;
 
@@ -116,7 +120,8 @@ void exec_cmds(struct PROCESS *process, int (*numfd)[2])
         if (pid == 0) {
             dup2(prefd, 0);
             dup2((i == LST) ? process->output : curfd[1], 1);
-            if (i == LST && process->error) dup2(process->output, 2);
+            dup2(process->error, 2);
+            if (i == LST && process->redirect_error) dup2(process->output, 2);
 
             if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
                 fprintf(stderr, "Unknown command: [%s].\n", process->cmds[i].argv[0]);
