@@ -23,6 +23,9 @@ deploy: $(EXECUTABLE)
 	@rm -rf ./test/test_*
 	@cp -r ./test/env ./test/test_env
 
+test: $(EXECUTABLE)
+	@cd ./test/np_project1_demo_sample/ && ./demo.sh ../../npshell
+
 zip:
 	@rm -rf $(STUDENT_ID) $(STUDENT_ID).zip ; mkdir $(STUDENT_ID)
 	@git ls-files | xargs -i cp {} $(STUDENT_ID)

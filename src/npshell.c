@@ -1,3 +1,8 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include "process.h"
 
 void proc_exit()
@@ -6,20 +11,28 @@ void proc_exit()
     while (waitpid(-1, &status, WNOHANG) > 0);
 }
 
-void npshell(char *buf, int (*numfd)[2])
+void npshell()
 {
-    struct PROCESS process;
-    memset(&process, 0, sizeof(process));
+    int numfd[MAX_NUMBERED_PIPE][2] = {};
+    char buf[MAX_INPUT_LENGTH];
 
-    parse_pipe(&process, buf);
-    parse_redirect(&process);
-    if (parse_args(&process) < 0) return;
+    while (fputs("% ", stdout), fgets(buf, MAX_INPUT_LENGTH, stdin)) {
+        buf[strcspn(buf, "\n\r")] = '\0';
+        if (buf[0] == 0) continue;
 
-    if (!build_in(&process.cmds[0])) {
-        exec_cmds(&process, numfd);
-        free_process(&process);
+        struct PROCESS process;
+        memset(&process, 0, sizeof(process));
+
+        parse_pipe(&process, buf);
+        parse_redirect(&process);
+        if (parse_args(&process) < 0) return;
+
+        if (!build_in(&process.cmds[0])) {
+            exec_cmds(&process, numfd);
+            free_process(&process);
+        }
+        move_numfd(numfd);
     }
-    move_numfd(numfd);
 }
 
 int main()
@@ -28,15 +41,7 @@ int main()
     setenv("PATH", "bin:.", 1);
     signal(SIGCHLD, proc_exit);
 
-    int numfd[MAX_NUMBERED_PIPE][2] = {};
-    char buf[MAX_INPUT_LENGTH];
-
-    while (fputs("% ", stdout), fgets(buf, MAX_INPUT_LENGTH, stdin)) {
-        buf[strcspn(buf, "\n\r")] = '\0';
-        if (buf[0] == 0) continue;
-
-        npshell(buf, numfd);
-    }
+    npshell();
 
     return 0;
 }

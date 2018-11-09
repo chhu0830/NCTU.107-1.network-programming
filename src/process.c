@@ -1,3 +1,12 @@
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wordexp.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <sys/wait.h>
 #include "process.h"
 
 void parse_pipe(struct PROCESS *process, char *buf)
