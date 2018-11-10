@@ -3,9 +3,10 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include "npshell.h"
 #include "connect.h"
 #include "user.h"
+#include "npshell.h"
+#include "process.h"
 
 #define HOST "192.168.1.86"
 #define PORT 8080

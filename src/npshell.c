@@ -1,16 +1,8 @@
 #include <string.h>
 #include <unistd.h>
-#include <sys/wait.h>
-#include "process.h"
 #include "user.h"
 #include "npshell.h"
-#include <stdio.h>
-
-void SIGCHLD_HANDLER()
-{
-    int status;
-    while (waitpid(-1, &status, WNOHANG) > 0);
-}
+#include "process.h"
 
 int read_until_newline(int fd, char *buf)
 {

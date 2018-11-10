@@ -9,6 +9,12 @@
 #include <sys/wait.h>
 #include "process.h"
 
+void SIGCHLD_HANDLER()
+{
+    int status;
+    while (waitpid(-1, &status, WNOHANG) > 0);
+}
+
 void parse_pipe(struct PROCESS *process, char *buf)
 {
     int i;
