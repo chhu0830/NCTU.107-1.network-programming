@@ -2,27 +2,25 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include "npshell.h"
 #include "connect.h"
 #include "user.h"
 
-void proc_exit()
-{
-    int status;
-    while (waitpid(-1, &status, WNOHANG) > 0);
-}
-
+#define HOST "192.168.1.86"
+#define PORT 8080
 
 int main()
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     setenv("PATH", "bin:.", 1);
-    signal(SIGCHLD, proc_exit);
+    signal(SIGCHLD, SIGCHLD_HANDLER);
 
     int sockfd = create_socket();
-    listen_socket(sockfd, "192.168.1.86", 8080);
+    listen_socket(sockfd, HOST, PORT);
 
     struct USER user;
+
     while (1) {
         reset_user(&user, 0);
         accept_client(sockfd, &user);

@@ -64,29 +64,6 @@ int parse_args(struct PROCESS *process)
     return 0;
 }
 
-
-int exec(struct PROCESS *process)
-{
-    struct CMD *cmd = &process->cmds[0];
-    char *ptr;
-    if (strcmp(cmd->argv[0], "exit") == 0) {
-        close(process->input);
-        close(process->output);
-        return -1;
-    } else if (strcmp(cmd->argv[0], "setenv") == 0) {
-        setenv(cmd->argv[1], cmd->argv[2], 1);
-    } else if (strcmp(cmd->argv[0], "printenv") == 0) {
-        if ((ptr = getenv(cmd->argv[1]))) {
-            strcat(ptr, "\n");
-            write(process->output, ptr, strlen(ptr));
-        }
-    } else {
-        shell(process);
-        free_process(process);
-    }
-    return 0;
-}
-
 void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd)
 {
     if (numfd[0][0]) {
@@ -107,6 +84,26 @@ void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd)
         process->output = dup(sockfd);
     }
     process->error = dup(sockfd);
+}
+
+int exec(struct PROCESS *process)
+{
+    struct CMD *cmd = &process->cmds[0];
+    char *ptr;
+    if (strcmp(cmd->argv[0], "exit") == 0) {
+        return -1;
+    } else if (strcmp(cmd->argv[0], "setenv") == 0) {
+        setenv(cmd->argv[1], cmd->argv[2], 1);
+    } else if (strcmp(cmd->argv[0], "printenv") == 0) {
+        if ((ptr = getenv(cmd->argv[1]))) {
+            strcat(ptr, "\n");
+            write(process->output, ptr, strlen(ptr));
+        }
+    } else {
+        shell(process);
+        return 1;
+    }
+    return 0;
 }
 
 void shell(struct PROCESS *process)
@@ -137,6 +134,7 @@ void shell(struct PROCESS *process)
 
     close(prefd);
     close(process->output);
+    close(process->error);
 
     if (process->num == 0) {
         for (int i = 0, status; i < process->count; i++) {
@@ -161,5 +159,8 @@ void free_process(struct PROCESS *process)
         }
         free(process->cmds[i].argv);
     }
+    close(process->input);
+    close(process->output);
+    close(process->error);
 }
 
