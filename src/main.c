@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <unistd.h>
 #include <sys/wait.h>
 #include "connect.h"
 #include "user.h"
@@ -20,15 +19,16 @@ int main()
     int sockfd = create_socket();
     listen_socket(sockfd, HOST, PORT);
 
-    struct USER user;
+    struct USER users[MAX_USER_NUM], *user;
+    reset_users(users);
 
     while (1) {
-        reset_user(&user, 0);
-        accept_client(sockfd, &user);
+        user = available_user(users);
+        accept_client(sockfd, user);
 
-        npshell(&user);
+        npshell(user);
 
-        close(user.sockfd);
+        reset_user(user);
     }
 
     return 0;
