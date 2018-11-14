@@ -10,7 +10,6 @@
 #include "user.h"
 #include "npshell.h"
 
-
 void parse_pipe(struct PROCESS *process, char *buf)
 {
     int i;
@@ -96,6 +95,7 @@ int exec(struct PROCESS *process, struct USER *user, struct USER *users)
     set_io(process, user->numfd, user->sockfd);
 
     if (strcmp(cmd->argv[0], "exit") == 0) {
+        leave(users, user);
         status = -1;
     } else if (strcmp(cmd->argv[0], "setenv") == 0) {
         setenv(cmd->argv[1], cmd->argv[2], 1);
@@ -107,10 +107,13 @@ int exec(struct PROCESS *process, struct USER *user, struct USER *users)
     } else if (strcmp(cmd->argv[0], "who") == 0) {
         who(users, user);
     } else if (strcmp(cmd->argv[0], "name") == 0) {
-        name(user, cmd->cmd+5);
+        name(users, user, cmd->cmd+5);
+    } else if (strcmp(cmd->argv[0], "tell") == 0) {
+        tell(users, user, atoi(cmd->argv[1]), cmd->cmd+7);
+    } else if (strcmp(cmd->argv[0], "yell") == 0) {
+        yell(users, user, cmd->cmd+5);
     } else {
         shell(process);
-        status = 1;
     }
 
     free_process(process);

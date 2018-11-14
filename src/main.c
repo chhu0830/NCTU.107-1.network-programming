@@ -8,7 +8,7 @@
 #include "user.h"
 #include "npshell.h"
 
-struct USER *users;
+struct USER *users, *user;
 
 void SIGCHLD_HANDLER()
 {
@@ -16,39 +16,51 @@ void SIGCHLD_HANDLER()
     while (waitpid(-1, &status, WNOHANG) > 0);
 }
 
+void RECV_MSG()
+{
+    dprintf(user->sockfd, "%s\n", user->msg);
+}
+
 int main(int argc, const char *argv[])
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     setenv("PATH", "bin:.", 1);
     signal(SIGCHLD, SIGCHLD_HANDLER);
+    signal(SIGUSR1, RECV_MSG);
 
     const char *HOST = "0.0.0.0";
     const int PORT = (argc == 2) ? atoi(argv[1]) : 8000;
     int sockfd = listen_socket(create_socket(), HOST, PORT);
     users = init_users();
 
-    while (1) {
-        struct USER *user = available_user(users);
-        accept_client(sockfd, user);
+    int len;
+    char buf[MAX_INPUT_LENGTH];
 
-        int len;
-        char buf[MAX_INPUT_LENGTH];
+    while (1) {
+        user = accept_client(sockfd, users);
 
 #if defined(MULTI)
         int pid = 0;
         if ((pid = fork()) < 0) {
             fprintf(stderr, "Fork error\n");
         } else if (pid > 0) {
+            user->pid = pid;
             close(user->sockfd);
             continue;
         }
 #endif
+
+#if defined(SINGLE) || defined(MULTI)
+        sprintf(buf, "*** User '%s' entered from %s/%d. ***", user->name, user->ip, user->port);
+        welcome_message(user);
+        broadcast_msg(users, buf);
+#endif
+
         while (write(user->sockfd, "% ", 2) && (len = read_until_newline(user->sockfd, buf)) >= 0)
         {
             if (len == 0) continue;
             if (npshell(users, user, buf) < 0) break;
         }
-        reset_user(user);
 
 #if defined(MULTI)
         exit(0);

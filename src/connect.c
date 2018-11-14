@@ -46,7 +46,7 @@ int listen_socket(int sockfd, const char *HOST, const int PORT)
     return sockfd;
 }
 
-int accept_client(int sockfd, struct USER *user)
+struct USER* accept_client(int sockfd, struct USER *users)
 {
     struct sockaddr_in client_info;
     unsigned int len = sizeof(client_info);
@@ -54,24 +54,22 @@ int accept_client(int sockfd, struct USER *user)
 
     if (clientfd < 0) {
         fprintf(stderr, "Accept error\n");
-        return -1;
+        return NULL;
     }
     
+    struct USER *user = available_user(users);
     strcpy(user->ip, inet_ntoa(client_info.sin_addr));
     user->port = (int)ntohs(client_info.sin_port);
     user->sockfd = clientfd;
 
     printf("id: %d, ip: %s, port: %d, sockfd: %d\n", user->id, user->ip, user->port, user->sockfd);
-#if defined(SINGLE) || defined(MULTI)
-    welcome_message(user);
-#endif
 
-    return 0;
+    return user;
 }
 
 void welcome_message(struct USER *user)
 {
-    send_msg(user, "***************************************\n");
-    send_msg(user, "** Welcome to the information server **\n");
-    send_msg(user, "***************************************\n");
+    dprintf(user->sockfd, "***************************************\n");
+    dprintf(user->sockfd, "** Welcome to the information server **\n");
+    dprintf(user->sockfd, "***************************************\n");
 }

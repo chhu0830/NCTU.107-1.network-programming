@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <sys/shm.h> 
 #include "user.h"
@@ -33,8 +34,8 @@ void free_users(struct USER *users)
 
 void reset_users(struct USER *users)
 {
+    memset(users, 0, sizeof(struct USER) * MAX_USER_NUM);
     for (int i = 0; i < MAX_USER_NUM; i++) {
-        memset(&users[i], 0, sizeof(struct USER));
         users[i].id = i + 1;
         strcpy(users[i].name, "(no name)");
     }
@@ -46,6 +47,7 @@ void reset_user(struct USER *user)
     close(user->sockfd);
     memset(user, 0, sizeof(struct USER));
     user->id = id;
+    strcpy(user->name, "(no name)");
 }
 
 struct USER* available_user(struct USER *users)
@@ -58,26 +60,66 @@ struct USER* available_user(struct USER *users)
     return NULL;
 }
 
+void leave(struct USER *users, struct USER *user)
+{
+    char msg[MAX_MSG_LENGTH];
+    sprintf(msg, "*** User '%s' left. ***", user->name);
+    broadcast_msg(users, msg);
+    reset_user(user);
+}
+
 void who(struct USER *users, struct USER *user)
 {
-    send_msg(user, "<ID>\t<nickname>\t<IP/port>\t<indicate me>\n");
+    dprintf(user->sockfd, "<ID>\t<nickname>\t<IP/port>\t<indicate me>\n");
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (users[i].sockfd != 0) {
-            char msg[MAX_NAME_LENGTH + 64];
-            sprintf(msg, "%d\t%s\t%s/%d%s", users[i].id, users[i].name, users[i].ip, users[i].port, (users[i].id == user->id) ? "\t<- me\n" : "\n");
-            send_msg(user, msg);
+            dprintf(user->sockfd, "%d\t%s\t%s/%d%s", users[i].id, users[i].name, users[i].ip, users[i].port, (users[i].id == user->id) ? "\t<- me\n" : "\n");
         }
     }
 }
 
-void name(struct USER *user, char *name)
+void name(struct USER *users, struct USER *user, char *name)
 {
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (strcmp(users[i].name, name) == 0) {
+            dprintf(user->sockfd, "*** User '%s' already exists. ***\n", name);
+            return;
+        }
+    }
+    char msg[MAX_MSG_LENGTH];
     strcpy(user->name, name);
+    sprintf(msg, "*** User from %s/%d is named '%s'. ***", user->ip, user->port, user->name);
+    broadcast_msg(users, msg);
+}
+
+void tell(struct USER *users, struct USER *user, int id, char *buf)
+{
+    if (users[id].sockfd == 0) {
+        dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", id);
+    } else {
+        char msg[MAX_MSG_LENGTH];
+        sprintf(msg, "*** %s told you ***: %s", user->name, buf);
+        send_msg(&users[id-1], msg);
+    }
+}
+
+void yell(struct USER *users, struct USER *user, char *buf)
+{
+    char msg[MAX_MSG_LENGTH];
+    sprintf(msg, "*** %s yelled ***: %s", user->name, buf);
+    broadcast_msg(users, msg);
 }
 
 void send_msg(struct USER *user, char *msg)
 {
-    write(user->sockfd, msg, strlen(msg));
+#if defined(MULTI)
+    if (user->pid != 0) {
+        strcpy(user->msg, msg);
+        kill(user->pid, SIGUSR1);
+    }
+#elif defined(SINGLE)
+    dprintf(user->sockfd, "%s\n", msg);
+#endif
 }
 
 void broadcast_msg(struct USER *users, char *msg)

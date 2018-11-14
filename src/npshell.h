@@ -16,6 +16,7 @@ struct PROCESS {
     char filename[MAX_FILENAME_LENGTH];
 };
 
+void SIGCHLD_HANDLER();
 void parse_pipe(struct PROCESS *process, char *buf);
 void parse_redirect(struct PROCESS *process);
 int parse_args(struct PROCESS *process);
