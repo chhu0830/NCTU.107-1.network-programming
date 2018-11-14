@@ -12,7 +12,7 @@ struct CMD {
 
 struct PROCESS {
     struct CMD cmds[MAX_PIPE_NUM];
-    int input, output, error, count, num, redirect_error;
+    int input, output, error, count, num, redirect_error, userin, userout;
     char filename[MAX_FILENAME_LENGTH];
 };
 
@@ -20,7 +20,6 @@ void SIGCHLD_HANDLER();
 void parse_pipe(struct PROCESS *process, char *buf);
 void parse_redirect(struct PROCESS *process);
 int parse_args(struct PROCESS *process);
-int exec(struct PROCESS *process, struct USER *user, struct USER *users);
 void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd);
 void shell(struct PROCESS *process);
 void move_numfd(int (*numfd)[2]);

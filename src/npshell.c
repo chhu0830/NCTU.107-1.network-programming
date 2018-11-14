@@ -22,21 +22,29 @@ void parse_pipe(struct PROCESS *process, char *buf)
 
 void parse_redirect(struct PROCESS *process)
 {
-    char *ptr, *cmd = process->cmds[process->count - 1].cmd;
+    int len;
+    char *ptr, *cmd = process->cmds[0].cmd;
+    if ((ptr = strchr(cmd, '<')) != NULL && isdigit(*(ptr+1))) {
+        sscanf(ptr+1, "%d%n", &process->userin, &len);
+        memset(ptr, ' ', len+1);
+    }
 
-    if ((ptr = strchr(cmd, '>'))) {
-        *ptr = '\0';
-        sscanf(ptr+1, "%s", process->filename);
-    } else if ((ptr = strchr(cmd, '!'))) {
-        *ptr = '\0';
+    cmd = process->cmds[process->count - 1].cmd;
+    if ((ptr = strchr(cmd, '!')) != NULL) {
         sscanf(ptr+1, "%d", &process->num);
         process->redirect_error = 1;
-    } else if (process->count != 1 && isdigit(cmd[0])) {
-        char *ptr, *buf = cmd;
-        for (int i = 0, num; (ptr = strsep(&buf, "+")); i++) {
-            sscanf(ptr, "%d", &num);
-            process->num += num;
+        *ptr = '\0';
+    }
+    else if ((ptr = strchr(cmd, '>')) != NULL) {
+        if (*(ptr+1) == ' ') {
+            sscanf(ptr+1, "%s", process->filename);
+            *ptr = '\0';
+        } else if (isdigit(*(ptr+1))) {
+            sscanf(ptr+1, "%d", &process->userout);
+            *ptr = '\0';
         }
+    } else if (process->count != 1 && isdigit(cmd[0])) {
+        sscanf(cmd, "%d", &process->num);
         process->count -= 1;
     }
 }
@@ -85,38 +93,6 @@ void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd)
         process->output = dup(sockfd);
     }
     process->error = dup(sockfd);
-}
-
-int exec(struct PROCESS *process, struct USER *user, struct USER *users)
-{
-    int status = 0;
-    char *ptr;
-    struct CMD *cmd = &process->cmds[0];
-    set_io(process, user->numfd, user->sockfd);
-
-    if (strcmp(cmd->argv[0], "exit") == 0) {
-        status = -1;
-    } else if (strcmp(cmd->argv[0], "setenv") == 0) {
-        setenv(cmd->argv[1], cmd->argv[2], 1);
-    } else if (strcmp(cmd->argv[0], "printenv") == 0) {
-        if ((ptr = getenv(cmd->argv[1]))) {
-            strcat(ptr, "\n");
-            write(process->output, ptr, strlen(ptr));
-        }
-    } else if (strcmp(cmd->argv[0], "who") == 0) {
-        who(users, user);
-    } else if (strcmp(cmd->argv[0], "name") == 0) {
-        name(users, user, strstr(cmd->cmd, cmd->argv[1]));
-    } else if (strcmp(cmd->argv[0], "tell") == 0) {
-        tell(users, user, atoi(cmd->argv[1]), strstr(cmd->cmd, cmd->argv[2]));
-    } else if (strcmp(cmd->argv[0], "yell") == 0) {
-        yell(users, user, strstr(cmd->cmd, cmd->argv[1]));
-    } else {
-        shell(process);
-    }
-
-    free_process(process);
-    return status;
 }
 
 void shell(struct PROCESS *process)
@@ -195,19 +171,46 @@ int read_until_newline(int fd, char *buf)
 
 int npshell(struct USER *users, struct USER *user, char *buf)
 {
-    struct PROCESS process;
-    memset(&process, 0, sizeof(struct PROCESS));
+    int status = 0, len;
+    char cmd[MAX_COMMAND_LENGTH], argv1[MAX_COMMAND_LENGTH], argv2[MAX_COMMAND_LENGTH];
+    char *ptr = buf;
+    sscanf(ptr, "%s%n", cmd, &len);
+    ptr += len + 1;
 
-    parse_pipe(&process, buf);
-    parse_redirect(&process);
-    if (parse_args(&process) < 0) {
-        return 0;
-    }
+    if (strcmp(cmd, "exit") == 0) {
+        status = -1;
+    } else if (strcmp(cmd, "setenv") == 0) {
+        sscanf(ptr, "%s %s", argv1, argv2);
+        setenv(argv1, argv2, 1);
+    } else if (strcmp(cmd, "printenv") == 0) {
+        sscanf(ptr, "%s", argv1);
+        if ((ptr = getenv(argv1)) != NULL) {
+            dprintf(user->sockfd, "%s\n", ptr);
+        }
+    } else if (strcmp(cmd, "who") == 0) {
+        who(users, user);
+    } else if (strcmp(cmd, "name") == 0) {
+        name(users, user, ptr);
+    } else if (strcmp(cmd, "tell") == 0) {
+        sscanf(ptr, "%s%n", argv1, &len);
+        ptr += len + 1;
+        tell(users, user, atoi(argv1), ptr);
+    } else if (strcmp(cmd, "yell") == 0) {
+        yell(users, user, ptr);
+    } else {
+        struct PROCESS process;
+        memset(&process, 0, sizeof(struct PROCESS));
 
-    if (exec(&process, user, users) < 0) {
-        return -1;
+        parse_pipe(&process, buf);
+        parse_redirect(&process);
+        if (parse_args(&process) == 0) {
+            set_io(&process, user->numfd, user->sockfd);
+            shell(&process);
+            free_process(&process);
+        }
     }
 
     move_numfd(user->numfd);
-    return 0;
+
+    return status;
 }

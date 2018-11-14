@@ -69,7 +69,7 @@ struct USER* accept_client(int sockfd, struct USER *users)
 
 void welcome_message(struct USER *user)
 {
-    dprintf(user->sockfd, "***************************************\n");
-    dprintf(user->sockfd, "** Welcome to the information server **\n");
-    dprintf(user->sockfd, "***************************************\n");
+    dprintf(user->sockfd, "****************************************\n");
+    dprintf(user->sockfd, "** Welcome to the information server. **\n");
+    dprintf(user->sockfd, "****************************************\n");
 }

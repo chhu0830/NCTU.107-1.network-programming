@@ -56,7 +56,7 @@ int main(int argc, const char *argv[])
         broadcast_msg(users, buf);
 #endif
 
-        while (write(user->sockfd, "% ", 2) && (len = read_until_newline(user->sockfd, buf)) >= 0)
+        while (dprintf(user->sockfd, "%% ") && (len = read_until_newline(user->sockfd, buf)) >= 0)
         {
             if (len == 0) continue;
             if (npshell(users, user, buf) < 0) break;
