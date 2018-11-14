@@ -8,7 +8,6 @@
 #include "user.h"
 #include "npshell.h"
 
-// extern USER user
 struct USER *users;
 
 void SIGCHLD_HANDLER()
@@ -23,17 +22,16 @@ int main(int argc, const char *argv[])
     setenv("PATH", "bin:.", 1);
     signal(SIGCHLD, SIGCHLD_HANDLER);
 
+    const char *HOST = "0.0.0.0";
     const int PORT = (argc == 2) ? atoi(argv[1]) : 8000;
-    int sockfd = create_socket();
-    listen_socket(sockfd, "0.0.0.0", PORT);
-
+    int sockfd = listen_socket(create_socket(), HOST, PORT);
     users = init_users();
 
     while (1) {
         struct USER *user = available_user(users);
         accept_client(sockfd, user);
 
-        int numfd[MAX_NUMBERED_PIPE][2] = {}, len;
+        int len;
         char buf[MAX_INPUT_LENGTH];
 
 #if defined(MULTI)
@@ -48,7 +46,7 @@ int main(int argc, const char *argv[])
         while (write(user->sockfd, "% ", 2) && (len = read_until_newline(user->sockfd, buf)) >= 0)
         {
             if (len == 0) continue;
-            if (npshell(user, buf, numfd) < 0) break;
+            if (npshell(users, user, buf) < 0) break;
         }
         reset_user(user);
 

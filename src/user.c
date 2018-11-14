@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -20,7 +21,7 @@ struct USER* init_users()
     return users;
 }
 
-void free_users(struct USER* users)
+void free_users(struct USER *users)
 {
 #if defined(SIMPLE) || defined(SINGLE)
     free(users);
@@ -34,7 +35,8 @@ void reset_users(struct USER *users)
 {
     for (int i = 0; i < MAX_USER_NUM; i++) {
         memset(&users[i], 0, sizeof(struct USER));
-        users[i].id = i;
+        users[i].id = i + 1;
+        strcpy(users[i].name, "(no name)");
     }
 }
 
@@ -56,7 +58,33 @@ struct USER* available_user(struct USER *users)
     return NULL;
 }
 
+void who(struct USER *users, struct USER *user)
+{
+    send_msg(user, "<ID>\t<nickname>\t<IP/port>\t<indicate me>\n");
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (users[i].sockfd != 0) {
+            char msg[MAX_NAME_LENGTH + 64];
+            sprintf(msg, "%d\t%s\t%s/%d%s", users[i].id, users[i].name, users[i].ip, users[i].port, (users[i].id == user->id) ? "\t<- me\n" : "\n");
+            send_msg(user, msg);
+        }
+    }
+}
+
+void name(struct USER *user, char *name)
+{
+    strcpy(user->name, name);
+}
+
 void send_msg(struct USER *user, char *msg)
 {
     write(user->sockfd, msg, strlen(msg));
+}
+
+void broadcast_msg(struct USER *users, char *msg)
+{
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (users[i].sockfd != 0) {
+            send_msg(&users[i], msg);
+        }
+    }
 }

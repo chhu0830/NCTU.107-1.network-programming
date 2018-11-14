@@ -10,6 +10,7 @@
 #include "user.h"
 #include "npshell.h"
 
+
 void parse_pipe(struct PROCESS *process, char *buf)
 {
     int i;
@@ -87,12 +88,15 @@ void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd)
     process->error = dup(sockfd);
 }
 
-int exec(struct PROCESS *process)
+int exec(struct PROCESS *process, struct USER *user, struct USER *users)
 {
-    struct CMD *cmd = &process->cmds[0];
+    int status = 0;
     char *ptr;
+    struct CMD *cmd = &process->cmds[0];
+    set_io(process, user->numfd, user->sockfd);
+
     if (strcmp(cmd->argv[0], "exit") == 0) {
-        return -1;
+        status = -1;
     } else if (strcmp(cmd->argv[0], "setenv") == 0) {
         setenv(cmd->argv[1], cmd->argv[2], 1);
     } else if (strcmp(cmd->argv[0], "printenv") == 0) {
@@ -100,11 +104,17 @@ int exec(struct PROCESS *process)
             strcat(ptr, "\n");
             write(process->output, ptr, strlen(ptr));
         }
+    } else if (strcmp(cmd->argv[0], "who") == 0) {
+        who(users, user);
+    } else if (strcmp(cmd->argv[0], "name") == 0) {
+        name(user, cmd->cmd+5);
     } else {
         shell(process);
-        return 1;
+        status = 1;
     }
-    return 0;
+
+    free_process(process);
+    return status;
 }
 
 void shell(struct PROCESS *process)
@@ -181,23 +191,21 @@ int read_until_newline(int fd, char *buf)
     return -1;
 }
 
-int npshell(struct USER *user, char *buf, int (*numfd)[2])
+int npshell(struct USER *users, struct USER *user, char *buf)
 {
     struct PROCESS process;
     memset(&process, 0, sizeof(struct PROCESS));
 
     parse_pipe(&process, buf);
     parse_redirect(&process);
-    if (parse_args(&process) < 0) return 1;
-
-    set_io(&process, numfd, user->sockfd);
-    int status = exec(&process);
-    free_process(&process);
-
-    if (status < 0) {
-        return status;
+    if (parse_args(&process) < 0) {
+        return 0;
     }
 
-    move_numfd(numfd);
+    if (exec(&process, user, users) < 0) {
+        return -1;
+    }
+
+    move_numfd(user->numfd);
     return 0;
 }

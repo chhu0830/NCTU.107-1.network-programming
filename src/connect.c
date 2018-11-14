@@ -22,14 +22,14 @@ int create_socket()
     return sockfd;
 }
 
-int listen_socket(int sockfd, const char *host, int port)
+int listen_socket(int sockfd, const char *HOST, const int PORT)
 {
     struct sockaddr_in server_info;
     bzero(&server_info, sizeof(server_info));
 
     server_info.sin_family = PF_INET;
-    server_info.sin_addr.s_addr = inet_addr(host);
-    server_info.sin_port = htons(port);
+    server_info.sin_addr.s_addr = inet_addr(HOST);
+    server_info.sin_port = htons(PORT);
 
     int opt = 1;
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -38,12 +38,12 @@ int listen_socket(int sockfd, const char *host, int port)
         return -1;
     }
     
-    if (listen(sockfd, MAX_CONNECT_NUM) < 0) {
+    if (listen(sockfd, MAX_USER_NUM) < 0) {
         fprintf(stderr, "Listen error\n");
         return -1;
     }
 
-    return 0;
+    return sockfd;
 }
 
 int accept_client(int sockfd, struct USER *user)
@@ -57,21 +57,21 @@ int accept_client(int sockfd, struct USER *user)
         return -1;
     }
     
-    strcpy(user->addr, inet_ntoa(client_info.sin_addr));
+    strcpy(user->ip, inet_ntoa(client_info.sin_addr));
     user->port = (int)ntohs(client_info.sin_port);
     user->sockfd = clientfd;
 
-    printf("id: %d, ip: %s, port: %d, sockfd: %d\n", user->id, user->addr, user->port, user->sockfd);
+    printf("id: %d, ip: %s, port: %d, sockfd: %d\n", user->id, user->ip, user->port, user->sockfd);
 #if defined(SINGLE) || defined(MULTI)
-    welcome_message(clientfd);
+    welcome_message(user);
 #endif
 
     return 0;
 }
 
-void welcome_message(int sockfd)
+void welcome_message(struct USER *user)
 {
-    write(sockfd, "***************************************\n", 40);
-    write(sockfd, "** Welcome to the information server **\n", 40);
-    write(sockfd, "***************************************\n", 40);
+    send_msg(user, "***************************************\n");
+    send_msg(user, "** Welcome to the information server **\n");
+    send_msg(user, "***************************************\n");
 }
