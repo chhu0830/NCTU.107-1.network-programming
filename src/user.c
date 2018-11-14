@@ -62,9 +62,11 @@ struct USER* available_user(struct USER *users)
 
 void leave(struct USER *users, struct USER *user)
 {
+#if defined(SINGLE) || defined(MULTI)
     char msg[MAX_MSG_LENGTH];
     sprintf(msg, "*** User '%s' left. ***", user->name);
     broadcast_msg(users, msg);
+#endif
     reset_user(user);
 }
 
@@ -94,7 +96,7 @@ void name(struct USER *users, struct USER *user, char *name)
 
 void tell(struct USER *users, struct USER *user, int id, char *buf)
 {
-    if (users[id].sockfd == 0) {
+    if (users[id-1].sockfd == 0) {
         dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", id);
     } else {
         char msg[MAX_MSG_LENGTH];

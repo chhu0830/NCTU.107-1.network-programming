@@ -61,7 +61,7 @@ int main(int argc, const char *argv[])
             if (len == 0) continue;
             if (npshell(users, user, buf) < 0) break;
         }
-
+        leave(users, user);
 #if defined(MULTI)
         exit(0);
 #endif
