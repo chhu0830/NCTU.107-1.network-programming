@@ -1,5 +1,6 @@
 CC          ?= gcc
-CFLAGS      += -std=gnu99 -Wall -Wextra -MMD -MF $@.d
+CFLAGS      += -std=gnu99 -Wall -Wextra -DMULTI -MMD -MF $@.d
+LDFLAGS		+= -lrt
 
 STUDENT_ID  := 0756020
 EXECUTABLE  := npshell
@@ -10,7 +11,7 @@ OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=.o))
 DEPS        := $(OBJS:.o=.o.d)
 
 $(EXECUTABLE): $(OBJS) 
-	$(CC) $(OBJS) -o $(EXECUTABLE)
+	$(CC) $(OBJS) -o $(EXECUTABLE) $(LDFLAGS)
 
 $(OUT)/%.o: %.c
 	mkdir -p $(dir $@)
