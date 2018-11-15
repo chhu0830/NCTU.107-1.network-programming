@@ -13,7 +13,7 @@ struct CMD {
 struct PROCESS {
     struct CMD cmds[MAX_PIPE_NUM];
     int input, output, error, count, num, redirect_error, userin, userout;
-    char filename[MAX_FILENAME_LENGTH], fifo[32], cmd[MAX_INPUT_LENGTH];
+    char filename[MAX_FILENAME_LENGTH], fifo[32], cmd[MAX_INPUT_LENGTH], **env;
 };
 
 void SIGCHLD_HANDLER();

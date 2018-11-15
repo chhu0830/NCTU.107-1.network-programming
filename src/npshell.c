@@ -76,6 +76,7 @@ int parse_args(struct PROCESS *process)
 
 int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
 {
+    process->env = user->env;
     char msg[128];
     if (user->numfd[0][0]) {
         process->input = user->numfd[0][0];
@@ -151,6 +152,7 @@ void shell(struct PROCESS *process)
             dup2(prefd, 0);
             dup2((i == LST) ? process->output : curfd[1], 1);
             dup2(process->error, 2);
+            environ = process->env;
             if (i == LST && process->redirect_error) dup2(process->output, 2);
 
             if (execvp(process->cmds[i].argv[0], process->cmds[i].argv) == -1) {
@@ -228,12 +230,10 @@ int npshell(struct USER *users, struct USER *user, char *buf)
         status = -1;
     } else if (strcmp(cmd, "setenv") == 0) {
         sscanf(ptr, "%s %s", argv1, argv2);
-        setenv(argv1, argv2, 1);
+        npsetenv(user, argv1, argv2);
     } else if (strcmp(cmd, "printenv") == 0) {
         sscanf(ptr, "%s", argv1);
-        if ((ptr = getenv(argv1)) != NULL) {
-            dprintf(user->sockfd, "%s\n", ptr);
-        }
+        npgetenv(user, argv1);
     } else if (strcmp(cmd, "who") == 0) {
         who(users, user);
     } else if (strcmp(cmd, "name") == 0) {

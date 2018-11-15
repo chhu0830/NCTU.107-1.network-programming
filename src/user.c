@@ -38,6 +38,8 @@ void reset_users(struct USER *users)
     for (int i = 0; i < MAX_USER_NUM; i++) {
         users[i].id = i + 1;
         strcpy(users[i].name, "(no name)");
+        users[i].env = (char**)calloc(1, sizeof(char*));
+        npsetenv(&users[i], "PATH", "bin:.");
     }
 }
 
@@ -45,9 +47,15 @@ void reset_user(struct USER *user)
 {
     int id = user->id;
     close(user->sockfd);
+    for (int i = 0; user->env[i]; i++) {
+        free(user->env[i]);
+    }
+    free(user->env);
     memset(user, 0, sizeof(struct USER));
     user->id = id;
     strcpy(user->name, "(no name)");
+    user->env = (char**)calloc(1, sizeof(char*));
+    npsetenv(user, "PATH", "bin:.");
 }
 
 struct USER* available_user(struct USER *users)
@@ -58,6 +66,31 @@ struct USER* available_user(struct USER *users)
         }
     }
     return NULL;
+}
+
+void npsetenv(struct USER *user, char *key, char *value)
+{
+    int i;
+    char buf[MAX_ENV_LENGTH];
+    for (i = 0; user->env[i]; i++) {
+        if (strstr(user->env[i], key) != NULL) {
+            strcpy(strchr(user->env[i], '=')+1, value);
+            return;
+        }
+    }
+    user->env = realloc(user->env, sizeof(char*) * (i+2));
+    sprintf(buf, "%s=%s", key, value);
+    user->env[i] = strdup(buf);
+}
+
+void npgetenv(struct USER *user, char *key)
+{
+    for (int i = 0; user->env[i]; i++) {
+        if (strstr(user->env[i], key) != NULL) {
+            dprintf(user->sockfd, "%s\n", strchr(user->env[i], '=')+1);
+            return;
+        }
+    }
 }
 
 void leave(struct USER *users, struct USER *user)

@@ -49,7 +49,6 @@ int max(int sockfd)
 int main(int argc, const char *argv[])
 {
     setvbuf(stdout, NULL, _IONBF, 0);
-    setenv("PATH", "bin:.", 1);
     signal(SIGCHLD, SIGCHLD_HANDLER);
     signal(SIGUSR1, RECV_MSG_HANDLER);
     signal(SIGUSR2, RECV_FIFO_HANDLER);
