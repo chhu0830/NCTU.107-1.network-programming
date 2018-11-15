@@ -6,18 +6,19 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include "user.h"
 #include "npshell.h"
 
 void parse_pipe(struct PROCESS *process, char *buf)
 {
-    int i;
     char *cmd;
-    for (i = 0; (cmd = strsep(&buf, "|")); i++) {
+    for (int i = 0; (cmd = strsep(&buf, "|")); process->count = ++i) {
         strcpy(process->cmds[i].cmd, cmd);
     }
-    process->count = i;
 }
 
 void parse_redirect(struct PROCESS *process)
@@ -73,26 +74,64 @@ int parse_args(struct PROCESS *process)
     return 0;
 }
 
-void set_io(struct PROCESS *process, int (*numfd)[2], int sockfd)
+int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
 {
-    if (numfd[0][0]) {
-        process->input = numfd[0][0];
-        close(numfd[0][1]);
+    char msg[128];
+    if (user->numfd[0][0]) {
+        process->input = user->numfd[0][0];
+        close(user->numfd[0][1]);
+    } else if (process->userin) {
+#if defined(MULTI)
+        if (users[process->userin-1].sockfd == 0) {
+            dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userin);
+            return -1;
+        } else if (user->fifo[process->userin-1] == 0) {
+            dprintf(user->sockfd, "*** Error: the pipe #%d->#%d does not exist yet. ***\n", process->userin, user->id);
+            return -1;
+        }
+
+        process->input = user->fifo[process->userin-1];
+        user->fifo[process->userin-1] = 0;
+
+        sprintf(msg, "*** %s (#%d) just received from %s (#%d) by '%s' ***", user->name, user->id, users[process->userin-1].name, process->userin, process->cmd);
+        broadcast_msg(users, msg);
+#endif
     } else {
-        process->input = dup(sockfd);
+        process->input = dup(user->sockfd);
     }
 
     if (process->filename[0]) {
         process->output = open(process->filename, O_WRONLY|O_TRUNC|O_CREAT|O_CLOEXEC, 0666);
     } else if (process->num) {
-        if (numfd[process->num][1] == 0) {
-            while (pipe2(numfd[process->num], O_CLOEXEC) < 0);
+        if (user->numfd[process->num][1] == 0) {
+            while (pipe2(user->numfd[process->num], O_CLOEXEC) < 0);
         }
-        process->output = dup(numfd[process->num][1]);
+        process->output = dup(user->numfd[process->num][1]);
+    } else if (process->userout) {
+#if defined(MULTI)
+        sprintf(process->fifo, "/tmp/0756020-%d-%d", user->id, process->userout);
+        if (users[process->userout-1].sockfd == 0) {
+            dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userout);
+            process->userout = 0;
+            return -1;
+        } else if (users[process->userout-1].fifo[user->id-1] > 0) {
+            dprintf(user->sockfd, "*** Error: the pipe #%d->#%d already exists. ***\n", user->id, process->userout);
+            process->userout = 0;
+            return -1;
+        }
+
+        mkfifo(process->fifo, 0600);
+        users[process->userout-1].fifo[user->id-1] = -1;
+        kill(users[process->userout-1].pid, SIGUSR2);
+        process->output = open(process->fifo, O_WRONLY|O_CLOEXEC);
+        sprintf(msg, "*** %s (#%d) just piped '%s' to %s (#%d) ***", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
+        broadcast_msg(users, msg);
+#endif
     } else {
-        process->output = dup(sockfd);
+        process->output = dup(user->sockfd);
     }
-    process->error = dup(sockfd);
+    process->error = dup(user->sockfd);
+    return 0;
 }
 
 void shell(struct PROCESS *process)
@@ -142,15 +181,18 @@ void move_numfd(int (*numfd)[2])
 
 void free_process(struct PROCESS *process)
 {
+    if (process->userout != 0) {
+        unlink(process->fifo);
+    }
     for (int i = 0; i < process->count; i++) {
         for (int j = 0; j < process->cmds[i].argc; j++) {
             free(process->cmds[i].argv[j]);
         }
         free(process->cmds[i].argv);
     }
-    close(process->input);
-    close(process->output);
-    close(process->error);
+    if (process->input > 2) close(process->input);
+    if (process->output > 2) close(process->output);
+    if (process->error > 2) close(process->error);
 }
 
 
@@ -201,16 +243,23 @@ int npshell(struct USER *users, struct USER *user, char *buf)
         struct PROCESS process;
         memset(&process, 0, sizeof(struct PROCESS));
 
+        strcpy(process.cmd, buf);
         parse_pipe(&process, buf);
         parse_redirect(&process);
         if (parse_args(&process) == 0) {
-            set_io(&process, user->numfd, user->sockfd);
-            shell(&process);
+            if (set_io(&process, user, users) == 0) {
+                shell(&process);
+            }
             free_process(&process);
+        }
+        else {
+            status = 1;
         }
     }
 
-    move_numfd(user->numfd);
+    if (status == 0) {
+        move_numfd(user->numfd);
+    }
 
     return status;
 }

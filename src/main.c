@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h> 
 #include "connect.h"
@@ -16,9 +18,20 @@ void SIGCHLD_HANDLER()
     while (waitpid(-1, &status, WNOHANG) > 0);
 }
 
-void RECV_MSG()
+void RECV_MSG_HANDLER()
 {
     dprintf(user->sockfd, "%s\n", user->msg);
+}
+
+void RECV_FIFO_HANDLER()
+{
+    char fifo[32];
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (user->fifo[i] < 0) {
+            sprintf(fifo, "/tmp/0756020-%d-%d", i+1, user->id);
+            user->fifo[i] = open(fifo, O_RDONLY|O_CLOEXEC);
+        }
+    }
 }
 
 int main(int argc, const char *argv[])
@@ -26,7 +39,8 @@ int main(int argc, const char *argv[])
     setvbuf(stdout, NULL, _IONBF, 0);
     setenv("PATH", "bin:.", 1);
     signal(SIGCHLD, SIGCHLD_HANDLER);
-    signal(SIGUSR1, RECV_MSG);
+    signal(SIGUSR1, RECV_MSG_HANDLER);
+    signal(SIGUSR2, RECV_FIFO_HANDLER);
 
     const char *HOST = "0.0.0.0";
     const int PORT = (argc == 2) ? atoi(argv[1]) : 8000;
@@ -62,6 +76,7 @@ int main(int argc, const char *argv[])
             if (npshell(users, user, buf) < 0) break;
         }
         leave(users, user);
+
 #if defined(MULTI)
         exit(0);
 #endif
