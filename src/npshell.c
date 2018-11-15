@@ -81,7 +81,6 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
         process->input = user->numfd[0][0];
         close(user->numfd[0][1]);
     } else if (process->userin) {
-#if defined(MULTI)
         if (users[process->userin-1].sockfd == 0) {
             dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userin);
             return -1;
@@ -90,6 +89,7 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
             return -1;
         }
 
+#if defined(SINGLE) || defined(MULTI)
         process->input = user->fifo[process->userin-1];
         user->fifo[process->userin-1] = 0;
 
@@ -108,8 +108,6 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
         }
         process->output = dup(user->numfd[process->num][1]);
     } else if (process->userout) {
-#if defined(MULTI)
-        sprintf(process->fifo, "/tmp/0756020-%d-%d", user->id, process->userout);
         if (users[process->userout-1].sockfd == 0) {
             dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userout);
             process->userout = 0;
@@ -120,13 +118,20 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
             return -1;
         }
 
+#if defined(MULTI)
+        sprintf(process->fifo, "/tmp/0756020-%d-%d", user->id, process->userout);
         mkfifo(process->fifo, 0600);
         users[process->userout-1].fifo[user->id-1] = -1;
         kill(users[process->userout-1].pid, SIGUSR2);
         process->output = open(process->fifo, O_WRONLY|O_CLOEXEC);
+#elif defined(SINGLE)
+        int fd[2];
+        while (pipe2(fd, O_CLOEXEC) < 0);
+        process->output = fd[1];
+        users[process->userout-1].fifo[user->id-1] = fd[0];
+#endif
         sprintf(msg, "*** %s (#%d) just piped '%s' to %s (#%d) ***", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
         broadcast_msg(users, msg);
-#endif
     } else {
         process->output = dup(user->sockfd);
     }

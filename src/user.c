@@ -75,7 +75,7 @@ void who(struct USER *users, struct USER *user)
     dprintf(user->sockfd, "<ID>\t<nickname>\t<IP/port>\t<indicate me>\n");
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (users[i].sockfd != 0) {
-            dprintf(user->sockfd, "%d\t%s\t%s/%d%s", users[i].id, users[i].name, users[i].ip, users[i].port, (users[i].id == user->id) ? "\t<- me\n" : "\n");
+            dprintf(user->sockfd, "%d\t%s\t%s/%d%s", users[i].id, users[i].name, users[i].ip, users[i].port, (users[i].id == user->id) ? "\t<-me\n" : "\n");
         }
     }
 }

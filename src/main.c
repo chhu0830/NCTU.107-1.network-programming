@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h> 
@@ -92,7 +93,10 @@ int main(int argc, const char *argv[])
             }
 
             for (int i = 0; nready && i < MAX_USER_NUM; i++) {
-                if (users[i].sockfd != 0 && FD_ISSET(users[i].sockfd, &rset)) {
+#if defined(SINGLE)
+                user = &users[i];
+#endif
+                if (FD_ISSET(user->sockfd, &rset)) {
                     if (read_until_newline(user->sockfd, buf) < 0 || npshell(users, user, buf) < 0) {
                         FD_CLR(user->sockfd, &allset);
                         leave(users, user);

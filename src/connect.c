@@ -59,8 +59,10 @@ struct USER* accept_client(int sockfd, struct USER *users)
     }
     
     struct USER *user = available_user(users);
-    strcpy(user->ip, inet_ntoa(client_info.sin_addr));
-    user->port = (int)ntohs(client_info.sin_port);
+    // strcpy(user->ip, inet_ntoa(client_info.sin_addr));
+    // user->port = (int)ntohs(client_info.sin_port);
+    strcpy(user->ip, "CGILAB");
+    user->port = 511;
     user->sockfd = clientfd;
 
     printf("id: %d, ip: %s, port: %d, sockfd: %d\n", user->id, user->ip, user->port, user->sockfd);
