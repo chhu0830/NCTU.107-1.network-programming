@@ -34,6 +34,17 @@ void RECV_FIFO_HANDLER()
     }
 }
 
+int max(int sockfd)
+{
+    int maxfd = sockfd;
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (users[i].sockfd > maxfd) {
+            maxfd = users[i].sockfd;
+        }
+    }
+    return maxfd;
+}
+
 int main(int argc, const char *argv[])
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -46,43 +57,57 @@ int main(int argc, const char *argv[])
     const int PORT = (argc == 2) ? atoi(argv[1]) : 8000;
     int sockfd = listen_socket(create_socket(), HOST, PORT);
     users = init_users();
+    
+    fd_set allset;
+    FD_ZERO(&allset);
+    FD_SET(sockfd, &allset);
 
-    int len;
     char buf[MAX_INPUT_LENGTH];
 
     while (1) {
-        user = accept_client(sockfd, users);
-
+        fd_set rset = allset;
+        int maxfd = max(sockfd), nready;
+        if ((nready = select(maxfd+1, &rset, NULL, NULL, NULL)) > 0) {
+            if (FD_ISSET(sockfd, &rset)) {
+                user = accept_client(sockfd, users);
 #if defined(MULTI)
-        int pid = 0;
-        if ((pid = fork()) < 0) {
-            fprintf(stderr, "Fork error\n");
-        } else if (pid > 0) {
-            user->pid = pid;
-            close(user->sockfd);
-            continue;
-        }
+                int pid = 0;
+                if ((pid = fork()) < 0) {
+                    fprintf(stderr, "Fork error\n");
+                } else if (pid > 0) {
+                    user->pid = pid;
+                    close(user->sockfd);
+                    continue;
+                }
+                FD_CLR(sockfd, &allset);
 #endif
-
+                FD_SET(user->sockfd, &allset);
+                nready--;
 #if defined(SINGLE) || defined(MULTI)
-        sprintf(buf, "*** User '%s' entered from %s/%d. ***", user->name, user->ip, user->port);
-        welcome_message(user);
-        broadcast_msg(users, buf);
+                sprintf(buf, "*** User '%s' entered from %s/%d. ***", user->name, user->ip, user->port);
+                welcome_message(user);
+                broadcast_msg(users, buf);
 #endif
+                dprintf(user->sockfd, "%% ");
+            }
 
-        while (dprintf(user->sockfd, "%% ") && (len = read_until_newline(user->sockfd, buf)) >= 0)
-        {
-            if (len == 0) continue;
-            if (npshell(users, user, buf) < 0) break;
-        }
-        leave(users, user);
-
+            for (int i = 0; nready && i < MAX_USER_NUM; i++) {
+                if (users[i].sockfd != 0 && FD_ISSET(users[i].sockfd, &rset)) {
+                    if (read_until_newline(user->sockfd, buf) < 0 || npshell(users, user, buf) < 0) {
+                        FD_CLR(user->sockfd, &allset);
+                        leave(users, user);
 #if defined(MULTI)
-        exit(0);
+                        exit(0);
 #endif
+                    } else {
+                        dprintf(user->sockfd, "%% ");
+                    }
+                    nready--;
+                }
+            }
+        }
     }
 
     free_users(users);
-
     return 0;
 }
