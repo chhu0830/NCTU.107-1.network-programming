@@ -96,6 +96,15 @@ void npgetenv(struct USER *user, char *key)
 void leave(struct USER *users, struct USER *user)
 {
 #if defined(SINGLE) || defined(MULTI)
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (users[i].fifo[user->id-1] != 0) {
+            close(users[i].fifo[user->id-1]);
+            users[i].fifo[user->id-1] = 0;
+        }
+        if (user->fifo[i] != 0) {
+            close(user->fifo[i]);
+        }
+    }
     char msg[MAX_MSG_LENGTH];
     sprintf(msg, "*** User '%s' left. ***", user->name);
     broadcast_msg(users, msg);
