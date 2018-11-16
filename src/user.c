@@ -178,6 +178,7 @@ void send_msg(struct USER *user, char *msg)
 {
 #if defined(MULTI)
     if (user->pid != 0) {
+        while (user->msg[0] != '\0');
         strcpy(user->msg, msg);
         kill(user->pid, SIGUSR1);
     }

@@ -22,6 +22,7 @@ void SIGCHLD_HANDLER()
 void RECV_MSG_HANDLER()
 {
     dprintf(user->sockfd, "%s\n", user->msg);
+    user->msg[0] = '\0';
 }
 
 void RECV_FIFO_HANDLER()
