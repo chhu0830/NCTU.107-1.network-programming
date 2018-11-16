@@ -1,31 +1,40 @@
 CC          ?= gcc
-CFLAGS      += -std=gnu99 -Wall -Wextra -DSINGLE -MMD -MF $@.d
+CFLAGS      += -std=gnu99 -Wall -Wextra -MMD -MF $@.d
 LDFLAGS		+= -lrt
 
 STUDENT_ID  := 0756020
-EXECUTABLE  := npshell
+EXECUTABLE  := server-simple server-single server-multi
 
 OUT         ?= .build
 SRCS        := $(wildcard *.c */*.c)
-OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=.o))
+OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=-simple.o)) \
+			   $(addprefix $(OUT)/, $(SRCS:.c=-single.o)) \
+			   $(addprefix $(OUT)/, $(SRCS:.c=-multi.o))
 DEPS        := $(OBJS:.o=.o.d)
 
-$(EXECUTABLE): $(OBJS) 
-	$(CC) $(OBJS) -o $(EXECUTABLE) $(LDFLAGS)
+all: $(EXECUTABLE)
 
-$(OUT)/%.o: %.c
-	mkdir -p $(dir $@)
-	$(CC) -c $(CFLAGS) $< -o $@
+server-%: $(OBJS)
+	$(CC) $(filter %$(subst server-,,$@).o,$(OBJS)) -o $@ $(LDFLAGS)
 
-run: deploy
-	cd ./test/test_env && ../../$(EXECUTABLE)
+$(OUT)/%-simple.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) -c $(CFLAGS) -DSIMPLE $< -o $@
+
+$(OUT)/%-single.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) -c $(CFLAGS) -DSINGLE $< -o $@
+
+$(OUT)/%-multi.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) -c $(CFLAGS) -DMULTI $< -o $@
+
+run-%: deploy
+	cd ./test/test_env && ../../server-$(subst run-,,$@)
 
 deploy: $(EXECUTABLE)
 	@rm -rf ./test/test_*
 	@cp -r ./test/env ./test/test_env
-
-test: $(EXECUTABLE)
-	@cd ./test/np_project1_demo_sample/ && ./demo.sh ../../npshell
 
 zip:
 	@rm -rf $(STUDENT_ID) $(STUDENT_ID).zip ; mkdir $(STUDENT_ID)
