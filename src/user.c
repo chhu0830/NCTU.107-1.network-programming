@@ -17,6 +17,7 @@ struct USER* init_users()
     int shm_fd = shm_open(SHARED_MEMORY_NAME, O_CREAT | O_RDWR, 0666); 
     ftruncate(shm_fd, SIZE);
     struct USER *users = (struct USER*)mmap(0, SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    close(shm_fd);
 #endif
     reset_users(users);
     return users;
@@ -97,12 +98,12 @@ void leave(struct USER *users, struct USER *user)
 {
 #if defined(SINGLE) || defined(MULTI)
     for (int i = 0; i < MAX_USER_NUM; i++) {
-        if (users[i].fifo[user->id-1] != 0) {
-            close(users[i].fifo[user->id-1]);
-            users[i].fifo[user->id-1] = 0;
+        if (users[i].userfd[user->id-1] != 0) {
+            close(users[i].userfd[user->id-1]);
+            users[i].userfd[user->id-1] = 0;
         }
-        if (user->fifo[i] != 0) {
-            close(user->fifo[i]);
+        if (user->userfd[i] != 0) {
+            close(user->userfd[i]);
         }
     }
     char msg[MAX_MSG_LENGTH];

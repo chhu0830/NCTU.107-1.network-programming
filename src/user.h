@@ -7,7 +7,7 @@
 
 struct USER {
     char name[MAX_NAME_LENGTH], ip[32], msg[MAX_MSG_LENGTH], **env;
-    int numfd[MAX_NUMBERED_PIPE][2], fifo[MAX_USER_NUM];
+    int numfd[MAX_NUMBERED_PIPE][2], userfd[MAX_USER_NUM];
     int id, sockfd, port, pid;
 };
 

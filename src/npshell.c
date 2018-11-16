@@ -85,14 +85,14 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
         if (users[process->userin-1].sockfd == 0) {
             dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userin);
             return -1;
-        } else if (user->fifo[process->userin-1] == 0) {
+        } else if (user->userfd[process->userin-1] == 0) {
             dprintf(user->sockfd, "*** Error: the pipe #%d->#%d does not exist yet. ***\n", process->userin, user->id);
             return -1;
         }
 
 #if defined(SINGLE) || defined(MULTI)
-        process->input = user->fifo[process->userin-1];
-        user->fifo[process->userin-1] = 0;
+        process->input = user->userfd[process->userin-1];
+        user->userfd[process->userin-1] = 0;
 
         sprintf(msg, "*** %s (#%d) just received from %s (#%d) by '%s' ***", user->name, user->id, users[process->userin-1].name, process->userin, process->cmd);
         broadcast_msg(users, msg);
@@ -113,7 +113,7 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
             dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userout);
             process->userout = 0;
             return -1;
-        } else if (users[process->userout-1].fifo[user->id-1] > 0) {
+        } else if (users[process->userout-1].userfd[user->id-1] > 0) {
             dprintf(user->sockfd, "*** Error: the pipe #%d->#%d already exists. ***\n", user->id, process->userout);
             process->userout = 0;
             return -1;
@@ -122,14 +122,14 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
 #if defined(MULTI)
         sprintf(process->fifo, "/tmp/0756020-%d-%d", user->id, process->userout);
         mkfifo(process->fifo, 0600);
-        users[process->userout-1].fifo[user->id-1] = -1;
+        users[process->userout-1].userfd[user->id-1] = -1;
         kill(users[process->userout-1].pid, SIGUSR2);
         process->output = open(process->fifo, O_WRONLY|O_CLOEXEC);
 #elif defined(SINGLE)
         int fd[2];
         while (pipe2(fd, O_CLOEXEC) < 0);
         process->output = fd[1];
-        users[process->userout-1].fifo[user->id-1] = fd[0];
+        users[process->userout-1].userfd[user->id-1] = fd[0];
 #endif
         sprintf(msg, "*** %s (#%d) just piped '%s' to %s (#%d) ***", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
         broadcast_msg(users, msg);
