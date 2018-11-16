@@ -1,6 +1,7 @@
-struct USER;
+#define HOST "0.0.0.0"
+#define PORT 8000
 
 int create_socket();
-int listen_socket(int sockfd, const char *HOST, const int PORT);
-struct USER* accept_client(int sockfd, struct USER *users);
-void welcome_message(struct USER *user);
+int listen_socket(int sockfd, const char *host, const int port);
+struct USER* accept_client(int sockfd);
+int max(int sockfd);

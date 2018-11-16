@@ -23,14 +23,14 @@ int create_socket()
     return sockfd;
 }
 
-int listen_socket(int sockfd, const char *HOST, const int PORT)
+int listen_socket(int sockfd, const char *host, const int port)
 {
     struct sockaddr_in server_info;
     bzero(&server_info, sizeof(server_info));
 
     server_info.sin_family = PF_INET;
-    server_info.sin_addr.s_addr = inet_addr(HOST);
-    server_info.sin_port = htons(PORT);
+    server_info.sin_addr.s_addr = inet_addr(host);
+    server_info.sin_port = htons(port);
 
     int opt = 1;
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -47,7 +47,7 @@ int listen_socket(int sockfd, const char *HOST, const int PORT)
     return sockfd;
 }
 
-struct USER* accept_client(int sockfd, struct USER *users)
+struct USER* accept_client(int sockfd)
 {
     struct sockaddr_in client_info;
     unsigned int len = sizeof(client_info);
@@ -70,9 +70,13 @@ struct USER* accept_client(int sockfd, struct USER *users)
     return user;
 }
 
-void welcome_message(struct USER *user)
+int max(int sockfd)
 {
-    dprintf(user->sockfd, "****************************************\n");
-    dprintf(user->sockfd, "** Welcome to the information server. **\n");
-    dprintf(user->sockfd, "****************************************\n");
+    int maxfd = sockfd;
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (users[i].sockfd > maxfd) {
+            maxfd = users[i].sockfd;
+        }
+    }
+    return maxfd;
 }

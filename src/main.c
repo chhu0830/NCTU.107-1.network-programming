@@ -11,7 +11,7 @@
 #include "user.h"
 #include "npshell.h"
 
-struct USER *users, *user;
+struct USER *user;
 
 void SIGCHLD_HANDLER()
 {
@@ -35,17 +35,6 @@ void RECV_FIFO_HANDLER()
     }
 }
 
-int max(int sockfd)
-{
-    int maxfd = sockfd;
-    for (int i = 0; i < MAX_USER_NUM; i++) {
-        if (users[i].sockfd > maxfd) {
-            maxfd = users[i].sockfd;
-        }
-    }
-    return maxfd;
-}
-
 int main(int argc, const char *argv[])
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -53,10 +42,9 @@ int main(int argc, const char *argv[])
     signal(SIGUSR1, RECV_MSG_HANDLER);
     signal(SIGUSR2, RECV_FIFO_HANDLER);
 
-    const char *HOST = "0.0.0.0";
-    const int PORT = (argc == 2) ? atoi(argv[1]) : 8000;
-    int sockfd = listen_socket(create_socket(), HOST, PORT);
-    users = init_users();
+    const char *host = HOST;
+    const int port = (argc == 2) ? atoi(argv[1]) : PORT;
+    int sockfd = listen_socket(create_socket(), host, port);
     
     fd_set allset;
     FD_ZERO(&allset);
@@ -69,7 +57,7 @@ int main(int argc, const char *argv[])
         int maxfd = max(sockfd), nready;
         if ((nready = select(maxfd+1, &rset, NULL, NULL, NULL)) > 0) {
             if (FD_ISSET(sockfd, &rset)) {
-                user = accept_client(sockfd, users);
+                user = accept_client(sockfd);
 #if defined(MULTI)
                 int pid = 0;
                 if ((pid = fork()) < 0) {
@@ -85,20 +73,20 @@ int main(int argc, const char *argv[])
                 nready--;
 #if defined(SINGLE) || defined(MULTI)
                 sprintf(buf, "*** User '%s' entered from %s/%d. ***", user->name, user->ip, user->port);
-                welcome_message(user);
-                broadcast_msg(users, buf);
+                welcome_msg(user);
+                broadcast_msg(buf);
 #endif
                 dprintf(user->sockfd, "%% ");
             }
 
             for (int i = 0; nready && i < MAX_USER_NUM; i++) {
-#if defined(SINGLE)
+#if defined(SIMPLE) || defined(SINGLE)
                 user = &users[i];
 #endif
                 if (FD_ISSET(user->sockfd, &rset)) {
-                    if (read_until_newline(user->sockfd, buf) < 0 || npshell(users, user, buf) < 0) {
+                    if (read_until_newline(user->sockfd, buf) < 0 || npshell(user, buf) < 0) {
                         FD_CLR(user->sockfd, &allset);
-                        leave(users, user);
+                        leave(user);
 #if defined(MULTI)
                         exit(0);
 #endif
@@ -111,6 +99,6 @@ int main(int argc, const char *argv[])
         }
     }
 
-    free_users(users);
+    free_users();
     return 0;
 }

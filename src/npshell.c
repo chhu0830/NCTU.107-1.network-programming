@@ -74,7 +74,7 @@ int parse_args(struct PROCESS *process)
     return 0;
 }
 
-int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
+int set_io(struct PROCESS *process, struct USER *user)
 {
     process->env = user->env;
     char msg[128];
@@ -95,7 +95,7 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
         user->userfd[process->userin-1] = 0;
 
         sprintf(msg, "*** %s (#%d) just received from %s (#%d) by '%s' ***", user->name, user->id, users[process->userin-1].name, process->userin, process->cmd);
-        broadcast_msg(users, msg);
+        broadcast_msg(msg);
 #endif
     } else {
         process->input = dup(user->sockfd);
@@ -132,7 +132,7 @@ int set_io(struct PROCESS *process, struct USER *user, struct USER *users)
         users[process->userout-1].userfd[user->id-1] = fd[0];
 #endif
         sprintf(msg, "*** %s (#%d) just piped '%s' to %s (#%d) ***", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
-        broadcast_msg(users, msg);
+        broadcast_msg(msg);
     } else {
         process->output = dup(user->sockfd);
     }
@@ -218,7 +218,7 @@ int read_until_newline(int fd, char *buf)
     return -1;
 }
 
-int npshell(struct USER *users, struct USER *user, char *buf)
+int npshell(struct USER *user, char *buf)
 {
     int status = 0, len;
     char cmd[MAX_COMMAND_LENGTH], argv1[MAX_COMMAND_LENGTH], argv2[MAX_COMMAND_LENGTH];
@@ -235,15 +235,15 @@ int npshell(struct USER *users, struct USER *user, char *buf)
         sscanf(ptr, "%s", argv1);
         npgetenv(user, argv1);
     } else if (strcmp(cmd, "who") == 0) {
-        who(users, user);
+        who(user);
     } else if (strcmp(cmd, "name") == 0) {
-        name(users, user, ptr);
+        name(user, ptr);
     } else if (strcmp(cmd, "tell") == 0) {
         sscanf(ptr, "%s%n", argv1, &len);
         ptr += len + 1;
-        tell(users, user, atoi(argv1), ptr);
+        tell(user, atoi(argv1), ptr);
     } else if (strcmp(cmd, "yell") == 0) {
-        yell(users, user, ptr);
+        yell(user, ptr);
     } else {
         struct PROCESS process;
         memset(&process, 0, sizeof(struct PROCESS));
@@ -252,7 +252,7 @@ int npshell(struct USER *users, struct USER *user, char *buf)
         parse_pipe(&process, buf);
         parse_redirect(&process);
         if (parse_args(&process) == 0) {
-            if (set_io(&process, user, users) == 0) {
+            if (set_io(&process, user) == 0) {
                 shell(&process);
             }
             free_process(&process);

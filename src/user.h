@@ -11,18 +11,24 @@ struct USER {
     int id, sockfd, port, pid;
 };
 
+#ifndef USRS
+#define USRS
+struct USER *users;
+#endif
+
 void RECV_MSG();
-struct USER* init_users();
-void free_users(struct USER *users);
-void reset_users(struct USER *users);
-void reset_user(struct USER *user);
-struct USER* available_user(struct USER *users);
+void init_users() __attribute__((constructor));
+void free_users();
+void reset_users();
+void reset_user(struct USER *user, int id);
+struct USER* available_user();
 void npsetenv(struct USER *user, char *key, char *value);
 void npgetenv(struct USER *user, char *key);
-void leave(struct USER *users, struct USER *user);
-void who(struct USER *users, struct USER *user);
-void name(struct USER *users, struct USER *user, char *name);
-void tell(struct USER *users, struct USER *user, int id, char *buf);
-void yell(struct USER *users, struct USER *user, char *buf);
+void leave(struct USER *user);
+void who(struct USER *user);
+void name(struct USER *user, char *name);
+void tell(struct USER *user, int id, char *buf);
+void yell(struct USER *user, char *buf);
+void welcome_msg(struct USER *user);
 void send_msg(struct USER *user, char *msg);
-void broadcast_msg(struct USER *users, char *msg);
+void broadcast_msg(char *msg);

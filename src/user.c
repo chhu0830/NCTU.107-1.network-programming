@@ -8,22 +8,21 @@
 #include <sys/shm.h> 
 #include "user.h"
 
-struct USER* init_users()
+void init_users()
 {
     const size_t SIZE = sizeof(struct USER) * MAX_USER_NUM;
 #if defined(SIMPLE) || defined(SINGLE)
-    struct USER *users = (struct USER*)malloc(SIZE);
+    users = (struct USER*)malloc(SIZE);
 #elif defined(MULTI)
     int shm_fd = shm_open(SHARED_MEMORY_NAME, O_CREAT | O_RDWR, 0666); 
     ftruncate(shm_fd, SIZE);
-    struct USER *users = (struct USER*)mmap(0, SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    users = (struct USER*)mmap(0, SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
     close(shm_fd);
 #endif
-    reset_users(users);
-    return users;
+    reset_users();
 }
 
-void free_users(struct USER *users)
+void free_users()
 {
 #if defined(SIMPLE) || defined(SINGLE)
     free(users);
@@ -33,25 +32,46 @@ void free_users(struct USER *users)
 #endif
 }
 
-void reset_users(struct USER *users)
+void reset_users()
 {
     memset(users, 0, sizeof(struct USER) * MAX_USER_NUM);
     for (int i = 0; i < MAX_USER_NUM; i++) {
-        users[i].id = i + 1;
-        strcpy(users[i].name, "(no name)");
-        users[i].env = (char**)calloc(1, sizeof(char*));
-        npsetenv(&users[i], "PATH", "bin:.");
+        reset_user(&users[i], i+1);
     }
 }
 
-void reset_user(struct USER *user)
+void reset_user(struct USER *user, int id)
 {
-    int id = user->id;
-    close(user->sockfd);
-    for (int i = 0; user->env[i]; i++) {
-        free(user->env[i]);
+    if (user->sockfd > 2) {
+        close(user->sockfd);
     }
-    free(user->env);
+
+    for (int i = 0; i < MAX_NUMBERED_PIPE; i++) {
+        if (user->numfd[i][0] > 2) {
+            close(user->numfd[i][0]);
+        }
+        if (user->numfd[i][1] > 2) {
+            close(user->numfd[i][1]);
+        }
+    }
+
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        if (users[i].userfd[user->id-1] > 2) {
+            close(users[i].userfd[user->id-1]);
+            users[i].userfd[user->id-1] = 0;
+        }
+        if (user->userfd[i] > 2) {
+            close(user->userfd[i]);
+        }
+    }
+
+    if (user->env != NULL) {
+        for (int i = 0; user->env[i]; i++) {
+            free(user->env[i]);
+        }
+        free(user->env);
+    }
+
     memset(user, 0, sizeof(struct USER));
     user->id = id;
     strcpy(user->name, "(no name)");
@@ -59,7 +79,7 @@ void reset_user(struct USER *user)
     npsetenv(user, "PATH", "bin:.");
 }
 
-struct USER* available_user(struct USER *users)
+struct USER* available_user()
 {
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (users[i].sockfd == 0) {
@@ -82,6 +102,7 @@ void npsetenv(struct USER *user, char *key, char *value)
     user->env = realloc(user->env, sizeof(char*) * (i+2));
     sprintf(buf, "%s=%s", key, value);
     user->env[i] = strdup(buf);
+    user->env[i+1] = NULL;
 }
 
 void npgetenv(struct USER *user, char *key)
@@ -94,26 +115,17 @@ void npgetenv(struct USER *user, char *key)
     }
 }
 
-void leave(struct USER *users, struct USER *user)
+void leave(struct USER *user)
 {
 #if defined(SINGLE) || defined(MULTI)
-    for (int i = 0; i < MAX_USER_NUM; i++) {
-        if (users[i].userfd[user->id-1] != 0) {
-            close(users[i].userfd[user->id-1]);
-            users[i].userfd[user->id-1] = 0;
-        }
-        if (user->userfd[i] != 0) {
-            close(user->userfd[i]);
-        }
-    }
     char msg[MAX_MSG_LENGTH];
     sprintf(msg, "*** User '%s' left. ***", user->name);
-    broadcast_msg(users, msg);
+    broadcast_msg(msg);
 #endif
-    reset_user(user);
+    reset_user(user, user->id);
 }
 
-void who(struct USER *users, struct USER *user)
+void who(struct USER *user)
 {
     dprintf(user->sockfd, "<ID>\t<nickname>\t<IP/port>\t<indicate me>\n");
     for (int i = 0; i < MAX_USER_NUM; i++) {
@@ -123,7 +135,7 @@ void who(struct USER *users, struct USER *user)
     }
 }
 
-void name(struct USER *users, struct USER *user, char *name)
+void name(struct USER *user, char *name)
 {
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (strcmp(users[i].name, name) == 0) {
@@ -134,10 +146,10 @@ void name(struct USER *users, struct USER *user, char *name)
     char msg[MAX_MSG_LENGTH];
     strcpy(user->name, name);
     sprintf(msg, "*** User from %s/%d is named '%s'. ***", user->ip, user->port, user->name);
-    broadcast_msg(users, msg);
+    broadcast_msg(msg);
 }
 
-void tell(struct USER *users, struct USER *user, int id, char *buf)
+void tell(struct USER *user, int id, char *buf)
 {
     if (users[id-1].sockfd == 0) {
         dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", id);
@@ -148,11 +160,18 @@ void tell(struct USER *users, struct USER *user, int id, char *buf)
     }
 }
 
-void yell(struct USER *users, struct USER *user, char *buf)
+void yell(struct USER *user, char *buf)
 {
     char msg[MAX_MSG_LENGTH];
     sprintf(msg, "*** %s yelled ***: %s", user->name, buf);
-    broadcast_msg(users, msg);
+    broadcast_msg(msg);
+}
+
+void welcome_msg(struct USER *user)
+{
+    dprintf(user->sockfd, "****************************************\n");
+    dprintf(user->sockfd, "** Welcome to the information server. **\n");
+    dprintf(user->sockfd, "****************************************\n");
 }
 
 void send_msg(struct USER *user, char *msg)
@@ -162,12 +181,12 @@ void send_msg(struct USER *user, char *msg)
         strcpy(user->msg, msg);
         kill(user->pid, SIGUSR1);
     }
-#elif defined(SINGLE)
+#elif defined(SIMPLE) || defined(SINGLE)
     dprintf(user->sockfd, "%s\n", msg);
 #endif
 }
 
-void broadcast_msg(struct USER *users, char *msg)
+void broadcast_msg(char *msg)
 {
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (users[i].sockfd != 0) {
