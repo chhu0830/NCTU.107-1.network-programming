@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <sys/mman.h>
 #include <sys/shm.h> 
 #include "user.h"
@@ -73,8 +74,8 @@ void clear_user(struct USER *user)
 
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (users[i].userfd[user->id-1] > 2) {
-            close(users[i].userfd[user->id-1]);
-            users[i].userfd[user->id-1] = 0;
+            users[i].userctl[user->id-1] = 2;
+            kill(users[i].pid, SIGUSR2);
         }
         if (user->userfd[i] > 2) {
             close(user->userfd[i]);
@@ -130,9 +131,7 @@ void npgetenv(struct USER *user, char *key)
 void leave(struct USER *user)
 {
 #if defined(SINGLE) || defined(MULTI)
-    char msg[MAX_MSG_LENGTH];
-    sprintf(msg, "*** User '%s' left. ***", user->name);
-    broadcast_msg(msg);
+    broadcast_msg("*** User '%s' left. ***", user->name);
 #endif
     int id = user->id;
     clear_user(user);
@@ -157,10 +156,8 @@ void name(struct USER *user, char *name)
             return;
         }
     }
-    char msg[MAX_MSG_LENGTH];
     strcpy(user->name, name);
-    sprintf(msg, "*** User from %s/%d is named '%s'. ***", user->ip, user->port, user->name);
-    broadcast_msg(msg);
+    broadcast_msg("*** User from %s/%d is named '%s'. ***\n", user->ip, user->port, user->name);
 }
 
 void tell(struct USER *user, int id, char *buf)
@@ -168,17 +165,13 @@ void tell(struct USER *user, int id, char *buf)
     if (users[id-1].sockfd == 0) {
         dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", id);
     } else {
-        char msg[MAX_MSG_LENGTH];
-        sprintf(msg, "*** %s told you ***: %s", user->name, buf);
-        send_msg(&users[id-1], msg);
+        send_msg(&users[id-1], "*** %s told you ***: %s\n", user->name, buf);
     }
 }
 
 void yell(struct USER *user, char *buf)
 {
-    char msg[MAX_MSG_LENGTH];
-    sprintf(msg, "*** %s yelled ***: %s", user->name, buf);
-    broadcast_msg(msg);
+    broadcast_msg("*** %s yelled ***: %s\n", user->name, buf);
 }
 
 void welcome_msg(struct USER *user)
@@ -188,24 +181,37 @@ void welcome_msg(struct USER *user)
     dprintf(user->sockfd, "****************************************\n");
 }
 
-void send_msg(struct USER *user, char *msg)
+void send_msg(struct USER *user, char *format, ...)
 {
+    va_list args;
+    va_start(args, format);
 #if defined(MULTI)
     if (user->pid != 0) {
         while (user->msg[0] != '\0');
-        strcpy(user->msg, msg);
+        vsprintf(user->msg, format, args);
         kill(user->pid, SIGUSR1);
     }
 #elif defined(SIMPLE) || defined(SINGLE)
-    dprintf(user->sockfd, "%s\n", msg);
+    vdprintf(user->sockfd, format, args);
 #endif
+    va_end(args);
 }
 
-void broadcast_msg(char *msg)
+void broadcast_msg(char *format, ...)
 {
+    va_list args, copy;
+    va_start(args, format);
+    va_copy(copy, args);
+    char *str = malloc(vsnprintf(NULL, 0, format, args) + 1);
+    vsprintf(str, format, copy);
+    va_end(args);
+    va_end(copy);
+
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (users[i].sockfd != 0) {
-            send_msg(&users[i], msg);
+            send_msg(&users[i], str);
         }
     }
+    
+    free(str);
 }

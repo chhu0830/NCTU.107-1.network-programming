@@ -27,17 +27,21 @@ void SIGINT_HANDLER()
 
 void RECV_MSG_HANDLER()
 {
-    dprintf(user->sockfd, "%s\n", user->msg);
+    dprintf(user->sockfd, "%s", user->msg);
     user->msg[0] = '\0';
 }
 
-void RECV_FIFO_HANDLER()
+void USER_PIPE_HANDLER()
 {
     char fifo[32];
     for (int i = 0; i < MAX_USER_NUM; i++) {
-        if (user->userfd[i] < 0) {
+        if (user->userctl[i] == 1) {
             sprintf(fifo, "/tmp/0756020-%d-%d", i+1, user->id);
             user->userfd[i] = open(fifo, O_RDONLY|O_NONBLOCK|O_CLOEXEC);
+            user->userctl[i] = 0;
+        } else if (user->userctl[i] == 2) {
+            close(user->userfd[i]);
+            user->userctl[i] = 0;
         }
     }
 }
@@ -48,7 +52,7 @@ int main(int argc, const char *argv[])
     signal(SIGINT, SIGINT_HANDLER);
     signal(SIGCHLD, SIGCHLD_HANDLER);
     signal(SIGUSR1, RECV_MSG_HANDLER);
-    signal(SIGUSR2, RECV_FIFO_HANDLER);
+    signal(SIGUSR2, USER_PIPE_HANDLER);
 
     const char *host = HOST;
     const int port = (argc == 2) ? atoi(argv[1]) : PORT;
@@ -60,10 +64,9 @@ int main(int argc, const char *argv[])
 
     while (1) {
         fd_set rset = allset;
-        int maxfd = max(sockfd), nready;
-        char buf[MAX_INPUT_LENGTH];
+        int nready;
 
-        if ((nready = select(maxfd+1, &rset, NULL, NULL, NULL)) > 0) {
+        if ((nready = select(maxfd(sockfd)+1, &rset, NULL, NULL, NULL)) > 0) {
             if (FD_ISSET(sockfd, &rset)) {
                 user = accept_client(sockfd);
 #if defined(MULTI)
@@ -81,13 +84,13 @@ int main(int argc, const char *argv[])
                 FD_SET(user->sockfd, &allset);
                 nready--;
 #if defined(SINGLE) || defined(MULTI)
-                sprintf(buf, "*** User '%s' entered from %s/%d. ***", user->name, user->ip, user->port);
                 welcome_msg(user);
-                broadcast_msg(buf);
+                broadcast_msg("*** User '%s' entered from %s/%d. ***\n", user->name, user->ip, user->port);
 #endif
                 dprintf(user->sockfd, "%% ");
             }
 
+            char buf[MAX_INPUT_LENGTH];
             for (int i = 0; nready && i < MAX_USER_NUM; i++) {
 #if defined(SIMPLE) || defined(SINGLE)
                 user = &users[i];

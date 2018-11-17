@@ -7,7 +7,7 @@
 
 struct USER {
     char name[MAX_NAME_LENGTH], ip[32], msg[MAX_MSG_LENGTH], **env;
-    int numfd[MAX_NUMBERED_PIPE][2], userfd[MAX_USER_NUM];
+    int numfd[MAX_NUMBERED_PIPE][2], userfd[MAX_USER_NUM], userctl[MAX_USER_NUM];
     int id, sockfd, port, pid;
 };
 
@@ -32,5 +32,5 @@ void name(struct USER *user, char *name);
 void tell(struct USER *user, int id, char *buf);
 void yell(struct USER *user, char *buf);
 void welcome_msg(struct USER *user);
-void send_msg(struct USER *user, char *msg);
-void broadcast_msg(char *msg);
+void send_msg(struct USER *user, char *format, ...);
+void broadcast_msg(char *format, ...);

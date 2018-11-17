@@ -12,7 +12,7 @@
 
 int create_socket()
 {
-    int sockfd = 0, optval;
+    int sockfd = 0, optval = 1;
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         fprintf(stderr, "Socket error\n");
@@ -32,8 +32,6 @@ int listen_socket(int sockfd, const char *host, const int port)
     server_info.sin_addr.s_addr = inet_addr(host);
     server_info.sin_port = htons(port);
 
-    int opt = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     if (bind(sockfd, (const struct sockaddr*)&server_info, sizeof(server_info)) < 0) {
         fprintf(stderr, "Bind error\n");
         return -1;
@@ -70,13 +68,13 @@ struct USER* accept_client(int sockfd)
     return user;
 }
 
-int max(int sockfd)
+int maxfd(int sockfd)
 {
-    int maxfd = sockfd;
+    int max = sockfd;
     for (int i = 0; i < MAX_USER_NUM; i++) {
-        if (users[i].sockfd > maxfd) {
-            maxfd = users[i].sockfd;
+        if (users[i].sockfd > max) {
+            max = users[i].sockfd;
         }
     }
-    return maxfd;
+    return max;
 }

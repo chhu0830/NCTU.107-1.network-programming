@@ -116,12 +116,10 @@ int set_io(struct PROCESS *process, struct USER *user)
     process->error = dup(user->sockfd);
 
     if (status == 0) {
-        char msg[128];
         if (process->userin) {
             process->input = user->userfd[process->userin-1];
             user->userfd[process->userin-1] = 0;
-            sprintf(msg, "*** %s (#%d) just received from %s (#%d) by '%s' ***", user->name, user->id, users[process->userin-1].name, process->userin, process->cmd);
-            broadcast_msg(msg);
+            broadcast_msg("*** %s (#%d) just received from %s (#%d) by '%s' ***\n", user->name, user->id, users[process->userin-1].name, process->userin, process->cmd);
         }
 
         if (process->userout) {
@@ -129,7 +127,7 @@ int set_io(struct PROCESS *process, struct USER *user)
             char fifo[128];
             sprintf(fifo, "/tmp/0756020-%d-%d", user->id, process->userout);
             mkfifo(fifo, 0600);
-            users[process->userout-1].userfd[user->id-1] = -1;
+            users[process->userout-1].userctl[user->id-1] = 1;
             kill(users[process->userout-1].pid, SIGUSR2);
             process->output = open(fifo, O_WRONLY|O_CLOEXEC);
             unlink(fifo);
@@ -139,8 +137,7 @@ int set_io(struct PROCESS *process, struct USER *user)
             process->output = fd[1];
             users[process->userout-1].userfd[user->id-1] = fd[0];
 #endif
-            sprintf(msg, "*** %s (#%d) just piped '%s' to %s (#%d) ***", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
-            broadcast_msg(msg);
+            broadcast_msg("*** %s (#%d) just piped '%s' to %s (#%d) ***\n", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
         }
     }
 
