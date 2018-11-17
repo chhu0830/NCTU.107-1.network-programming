@@ -234,6 +234,7 @@ int npshell(struct USER *user, char *buf)
     } else if (strcmp(cmd, "printenv") == 0) {
         sscanf(ptr, "%s", argv1);
         npgetenv(user, argv1);
+#if defined(SINGLE) || defined(MULTI)
     } else if (strcmp(cmd, "who") == 0) {
         who(user);
     } else if (strcmp(cmd, "name") == 0) {
@@ -244,6 +245,7 @@ int npshell(struct USER *user, char *buf)
         tell(user, atoi(argv1), ptr);
     } else if (strcmp(cmd, "yell") == 0) {
         yell(user, ptr);
+#endif
     } else {
         struct PROCESS process;
         memset(&process, 0, sizeof(struct PROCESS));

@@ -19,6 +19,12 @@ void SIGCHLD_HANDLER()
     while (waitpid(-1, &status, WNOHANG) > 0);
 }
 
+void SIGINT_HANDLER()
+{
+    free_users();
+    exit(0);
+}
+
 void RECV_MSG_HANDLER()
 {
     dprintf(user->sockfd, "%s\n", user->msg);
@@ -39,6 +45,7 @@ void RECV_FIFO_HANDLER()
 int main(int argc, const char *argv[])
 {
     setvbuf(stdout, NULL, _IONBF, 0);
+    signal(SIGINT, SIGINT_HANDLER);
     signal(SIGCHLD, SIGCHLD_HANDLER);
     signal(SIGUSR1, RECV_MSG_HANDLER);
     signal(SIGUSR2, RECV_FIFO_HANDLER);
@@ -51,11 +58,11 @@ int main(int argc, const char *argv[])
     FD_ZERO(&allset);
     FD_SET(sockfd, &allset);
 
-    char buf[MAX_INPUT_LENGTH];
-
     while (1) {
         fd_set rset = allset;
         int maxfd = max(sockfd), nready;
+        char buf[MAX_INPUT_LENGTH];
+
         if ((nready = select(maxfd+1, &rset, NULL, NULL, NULL)) > 0) {
             if (FD_ISSET(sockfd, &rset)) {
                 user = accept_client(sockfd);
@@ -69,6 +76,7 @@ int main(int argc, const char *argv[])
                     continue;
                 }
                 FD_CLR(sockfd, &allset);
+                close(sockfd);
 #endif
                 FD_SET(user->sockfd, &allset);
                 nready--;
@@ -100,6 +108,5 @@ int main(int argc, const char *argv[])
         }
     }
 
-    free_users();
     return 0;
 }

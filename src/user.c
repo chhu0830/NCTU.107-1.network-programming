@@ -19,11 +19,12 @@ void init_users()
     users = (struct USER*)mmap(0, SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
     close(shm_fd);
 #endif
-    reset_users();
+    set_users();
 }
 
 void free_users()
 {
+    clear_users();
 #if defined(SIMPLE) || defined(SINGLE)
     free(users);
 #elif defined(MULTI)
@@ -32,15 +33,30 @@ void free_users()
 #endif
 }
 
-void reset_users()
+void set_users()
 {
     memset(users, 0, sizeof(struct USER) * MAX_USER_NUM);
     for (int i = 0; i < MAX_USER_NUM; i++) {
-        reset_user(&users[i], i+1);
+        set_user(&users[i], i+1);
     }
 }
 
-void reset_user(struct USER *user, int id)
+void set_user(struct USER *user, int id)
+{
+    user->id = id;
+    strcpy(user->name, "(no name)");
+    user->env = (char**)calloc(1, sizeof(char*));
+    npsetenv(user, "PATH", "bin:.");
+}
+
+void clear_users()
+{
+    for (int i = 0; i < MAX_USER_NUM; i++) {
+        clear_user(&users[i]);
+    }
+}
+
+void clear_user(struct USER *user)
 {
     if (user->sockfd > 2) {
         close(user->sockfd);
@@ -73,10 +89,6 @@ void reset_user(struct USER *user, int id)
     }
 
     memset(user, 0, sizeof(struct USER));
-    user->id = id;
-    strcpy(user->name, "(no name)");
-    user->env = (char**)calloc(1, sizeof(char*));
-    npsetenv(user, "PATH", "bin:.");
 }
 
 struct USER* available_user()
@@ -122,7 +134,9 @@ void leave(struct USER *user)
     sprintf(msg, "*** User '%s' left. ***", user->name);
     broadcast_msg(msg);
 #endif
-    reset_user(user, user->id);
+    int id = user->id;
+    clear_user(user);
+    set_user(user, id);
 }
 
 void who(struct USER *user)
