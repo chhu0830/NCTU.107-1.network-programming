@@ -13,7 +13,7 @@ struct CMD {
 struct PROCESS {
     struct CMD cmds[MAX_PIPE_NUM];
     int input, output, error, count, num, redirect_error, userin, userout;
-    char filename[MAX_FILENAME_LENGTH], fifo[32], cmd[MAX_INPUT_LENGTH], **env;
+    char filename[MAX_FILENAME_LENGTH], cmd[MAX_INPUT_LENGTH], **env;
 };
 
 void parse_pipe(struct PROCESS *process, char *buf);

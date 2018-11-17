@@ -76,27 +76,19 @@ int parse_args(struct PROCESS *process)
 
 int set_io(struct PROCESS *process, struct USER *user)
 {
+    int status = 0;
     process->env = user->env;
-    char msg[128];
     if (user->numfd[0][0]) {
         process->input = user->numfd[0][0];
         close(user->numfd[0][1]);
     } else if (process->userin) {
         if (users[process->userin-1].sockfd == 0) {
             dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userin);
-            return -1;
+            status = -1;
         } else if (user->userfd[process->userin-1] == 0) {
             dprintf(user->sockfd, "*** Error: the pipe #%d->#%d does not exist yet. ***\n", process->userin, user->id);
-            return -1;
+            status = -1;
         }
-
-#if defined(SINGLE) || defined(MULTI)
-        process->input = user->userfd[process->userin-1];
-        user->userfd[process->userin-1] = 0;
-
-        sprintf(msg, "*** %s (#%d) just received from %s (#%d) by '%s' ***", user->name, user->id, users[process->userin-1].name, process->userin, process->cmd);
-        broadcast_msg(msg);
-#endif
     } else {
         process->input = dup(user->sockfd);
     }
@@ -112,32 +104,47 @@ int set_io(struct PROCESS *process, struct USER *user)
         if (users[process->userout-1].sockfd == 0) {
             dprintf(user->sockfd, "*** Error: user #%d does not exist yet. ***\n", process->userout);
             process->userout = 0;
-            return -1;
+            status = -1;
         } else if (users[process->userout-1].userfd[user->id-1] > 0) {
             dprintf(user->sockfd, "*** Error: the pipe #%d->#%d already exists. ***\n", user->id, process->userout);
             process->userout = 0;
-            return -1;
+            status = -1;
         }
-
-#if defined(MULTI)
-        sprintf(process->fifo, "/tmp/0756020-%d-%d", user->id, process->userout);
-        mkfifo(process->fifo, 0600);
-        users[process->userout-1].userfd[user->id-1] = -1;
-        kill(users[process->userout-1].pid, SIGUSR2);
-        process->output = open(process->fifo, O_WRONLY|O_CLOEXEC);
-#elif defined(SINGLE)
-        int fd[2];
-        while (pipe2(fd, O_CLOEXEC) < 0);
-        process->output = fd[1];
-        users[process->userout-1].userfd[user->id-1] = fd[0];
-#endif
-        sprintf(msg, "*** %s (#%d) just piped '%s' to %s (#%d) ***", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
-        broadcast_msg(msg);
     } else {
         process->output = dup(user->sockfd);
     }
     process->error = dup(user->sockfd);
-    return 0;
+
+    if (status == 0) {
+        char msg[128];
+        if (process->userin) {
+            process->input = user->userfd[process->userin-1];
+            user->userfd[process->userin-1] = 0;
+            sprintf(msg, "*** %s (#%d) just received from %s (#%d) by '%s' ***", user->name, user->id, users[process->userin-1].name, process->userin, process->cmd);
+            broadcast_msg(msg);
+        }
+
+        if (process->userout) {
+#if defined(MULTI)
+            char fifo[128];
+            sprintf(fifo, "/tmp/0756020-%d-%d", user->id, process->userout);
+            mkfifo(fifo, 0600);
+            users[process->userout-1].userfd[user->id-1] = -1;
+            kill(users[process->userout-1].pid, SIGUSR2);
+            process->output = open(fifo, O_WRONLY|O_CLOEXEC);
+            unlink(fifo);
+#elif defined(SIMPLE) || defined(SINGLE)
+            int fd[2];
+            while (pipe2(fd, O_CLOEXEC) < 0);
+            process->output = fd[1];
+            users[process->userout-1].userfd[user->id-1] = fd[0];
+#endif
+            sprintf(msg, "*** %s (#%d) just piped '%s' to %s (#%d) ***", user->name, user->id, process->cmd, users[process->userout-1].name, process->userout);
+            broadcast_msg(msg);
+        }
+    }
+
+    return status;
 }
 
 void shell(struct PROCESS *process)
@@ -171,7 +178,7 @@ void shell(struct PROCESS *process)
     close(process->output);
     close(process->error);
 
-    if (process->num == 0) {
+    if (process->num == 0 && process->userout == 0) {
         for (int i = 0, status; i < process->count; i++) {
             waitpid(process->cmds[i].pid, &status, 0);
         }
@@ -188,9 +195,6 @@ void move_numfd(int (*numfd)[2])
 
 void free_process(struct PROCESS *process)
 {
-    if (process->userout != 0) {
-        unlink(process->fifo);
-    }
     for (int i = 0; i < process->count; i++) {
         for (int j = 0; j < process->cmds[i].argc; j++) {
             free(process->cmds[i].argv[j]);

@@ -37,7 +37,7 @@ void RECV_FIFO_HANDLER()
     for (int i = 0; i < MAX_USER_NUM; i++) {
         if (user->userfd[i] < 0) {
             sprintf(fifo, "/tmp/0756020-%d-%d", i+1, user->id);
-            user->userfd[i] = open(fifo, O_RDONLY|O_CLOEXEC);
+            user->userfd[i] = open(fifo, O_RDONLY|O_NONBLOCK|O_CLOEXEC);
         }
     }
 }

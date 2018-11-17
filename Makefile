@@ -1,5 +1,5 @@
 CC          ?= gcc
-CFLAGS      += -std=gnu99 -Wall -Wextra -MMD -MF -g $@.d
+CFLAGS      += -std=gnu99 -Wall -Wextra -MMD -MF $@.d
 LDFLAGS		+= -lrt
 
 STUDENT_ID  := 0756020
@@ -12,7 +12,7 @@ OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=-simple.o)) \
 			   $(addprefix $(OUT)/, $(SRCS:.c=-multi.o))
 DEPS        := $(OBJS:.o=.o.d)
 
-all: $(EXECUTABLE) deploy
+all: $(EXECUTABLE)
 
 server-%: $(OBJS)
 	$(CC) $(filter %$(subst server-,,$@).o,$(OBJS)) -o $@ $(LDFLAGS)
