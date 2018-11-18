@@ -15,7 +15,7 @@ void init_users()
 #if defined(SIMPLE) || defined(SINGLE)
     users = (struct USER*)malloc(SIZE);
 #elif defined(MULTI)
-    int shm_fd = shm_open(SHARED_MEMORY_NAME, O_CREAT | O_RDWR, 0666); 
+    int shm_fd = shm_open(SHARED_MEMORY_NAME, O_CREAT|O_RDWR, 0666); 
     ftruncate(shm_fd, SIZE);
     users = (struct USER*)mmap(0, SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
     close(shm_fd);
@@ -131,7 +131,7 @@ void npgetenv(struct USER *user, char *key)
 void leave(struct USER *user)
 {
 #if defined(SINGLE) || defined(MULTI)
-    broadcast_msg("*** User '%s' left. ***", user->name);
+    broadcast_msg("*** User '%s' left. ***\n", user->name);
 #endif
     int id = user->id;
     clear_user(user);

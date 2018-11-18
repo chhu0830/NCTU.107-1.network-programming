@@ -3,34 +3,34 @@ CFLAGS      += -std=gnu99 -Wall -Wextra -MMD -MF $@.d
 LDFLAGS		+= -lrt
 
 STUDENT_ID  := 0756020
-EXECUTABLE  := server-simple server-single server-multi
+EXECUTABLE  := np_simple np_single_proc np_multi_proc
 
 OUT         ?= .build
 SRCS        := $(wildcard *.c */*.c)
-OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=-simple.o)) \
-			   $(addprefix $(OUT)/, $(SRCS:.c=-single.o)) \
-			   $(addprefix $(OUT)/, $(SRCS:.c=-multi.o))
+OBJS        := $(addprefix $(OUT)/, $(SRCS:.c=_simple.o)) \
+			   $(addprefix $(OUT)/, $(SRCS:.c=_single_proc.o)) \
+			   $(addprefix $(OUT)/, $(SRCS:.c=_multi_proc.o))
 DEPS        := $(OBJS:.o=.o.d)
 
 all: $(EXECUTABLE)
 
-server-%: $(OBJS)
-	$(CC) $(filter %$(subst server-,,$@).o,$(OBJS)) -o $@ $(LDFLAGS)
+np_%: $(OBJS)
+	$(CC) $(filter %$(subst np_,,$@).o,$(OBJS)) -o $@ $(LDFLAGS)
 
-$(OUT)/%-simple.o: %.c
+$(OUT)/%_simple.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) -c $(CFLAGS) -DSIMPLE $< -o $@
 
-$(OUT)/%-single.o: %.c
+$(OUT)/%_single_proc.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) -c $(CFLAGS) -DSINGLE $< -o $@
 
-$(OUT)/%-multi.o: %.c
+$(OUT)/%_multi_proc.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) -c $(CFLAGS) -DMULTI $< -o $@
 
 run-%: deploy
-	cd ./test/test_env && ../../server-$(subst run-,,$@)
+	cd ./test/test_env && ../../np_$(subst run-,,$@)
 
 deploy: $(EXECUTABLE)
 	@rm -rf ./test/test_*

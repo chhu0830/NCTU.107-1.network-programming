@@ -28,6 +28,7 @@ void parse_redirect(struct PROCESS *process)
     if ((ptr = strchr(cmd, '<')) != NULL && isdigit(*(ptr+1))) {
         sscanf(ptr+1, "%d%n", &process->userin, &len);
         memset(ptr, ' ', len+1);
+        process->redirect_error = 1;
     }
 
     cmd = process->cmds[process->count - 1].cmd;
@@ -43,6 +44,7 @@ void parse_redirect(struct PROCESS *process)
         } else if (isdigit(*(ptr+1))) {
             sscanf(ptr+1, "%d", &process->userout);
             *ptr = '\0';
+            process->redirect_error = 1;
         }
     } else if (process->count != 1 && isdigit(cmd[0])) {
         sscanf(cmd, "%d", &process->num);
@@ -221,6 +223,7 @@ int read_until_newline(int fd, char *buf)
 
 int npshell(struct USER *user, char *buf)
 {
+    printf("%d: '%s'\n", user->id, buf);
     int status = 0, len;
     char cmd[MAX_COMMAND_LENGTH], argv1[MAX_COMMAND_LENGTH], argv2[MAX_COMMAND_LENGTH];
     char *ptr = buf;

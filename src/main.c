@@ -65,6 +65,7 @@ int main(int argc, const char *argv[])
     while (1) {
         fd_set rset = allset;
         int nready;
+        char buf[MAX_INPUT_LENGTH];
 
         if ((nready = select(maxfd(sockfd)+1, &rset, NULL, NULL, NULL)) > 0) {
             if (FD_ISSET(sockfd, &rset)) {
@@ -90,7 +91,6 @@ int main(int argc, const char *argv[])
                 dprintf(user->sockfd, "%% ");
             }
 
-            char buf[MAX_INPUT_LENGTH];
             for (int i = 0; nready && i < MAX_USER_NUM; i++) {
 #if defined(SIMPLE) || defined(SINGLE)
                 user = &users[i];
