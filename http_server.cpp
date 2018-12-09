@@ -3,23 +3,10 @@
 #include <regex>
 #include <vector>
 
-
 using namespace std;
 using namespace boost::asio;
 
 io_service global_io_service;
-
-struct Header {
-    string request_method;
-    string request_uri;
-    string query_string;
-    string server_protocol;
-    string http_host;
-    string server_addr;
-    string remote_addr;
-    short server_port;
-    short remote_port;
-};
 
 class Session : public enable_shared_from_this<Session> {
     private:
@@ -48,10 +35,35 @@ class Session : public enable_shared_from_this<Session> {
         }
 
         void cgi() {
-            parse();
+            auto self(shared_from_this());
+            int pid;
+            global_io_service.notify_fork(io_service::fork_prepare);
+            if ((pid = fork()) < 0) {
+                perror("Error");
+            } else if (pid == 0) {
+                global_io_service.notify_fork(io_service::fork_child);
+
+                setenviron();
+
+                string buf = string("./") + string(getenv("REQUEST_URI"));
+                vector<char*> argv;
+                argv.push_back((char*)buf.c_str());
+                argv.push_back(NULL);
+
+                cout << "exec:" << argv.front() << endl;
+
+                dup2(_socket.native_handle(), 1);
+                cout << getenv("SERVER_PROTOCOL") << " 200 OK" << endl;
+                if (execvp(argv.front(), argv.data()) < 0) {
+                    perror("Error");
+                    exit(1);
+                }
+            } else {
+                global_io_service.notify_fork(io_service::fork_parent);
+            }
         }
         
-        void parse() {
+        void setenviron() {
             // auto env = boost::this_process::environment();
             string header(_data.data());
             smatch m;
@@ -67,7 +79,7 @@ class Session : public enable_shared_from_this<Session> {
             cout << "request_uri: " << m.str(0) << endl;
             setenv("REQUEST_URI", m.str(0).c_str(), 1);
 
-            regex_search(header, m, regex("([\\w\\d]+=[\\w\\d]&*)+"));
+            regex_search(header, m, regex("\\?([\\w\\d]+=.*&*)+"));
             cout << "query_string: " << m.str(0) << endl;
             setenv("QUERY_STRING", m.str(0).c_str(), 1);
             
@@ -90,8 +102,6 @@ class Session : public enable_shared_from_this<Session> {
 
             cout << "remote_port: " << _socket.remote_endpoint().port() << endl;
             setenv("REMOTE_PORT", to_string(_socket.remote_endpoint().port()).c_str(), 1);
-
-            // std::transform(env.begin(), env.end(), _env.begin(), std::mem_fun_ref(&std::string::c_str));
         }
 };
 
