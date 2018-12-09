@@ -1,6 +1,7 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 #include <regex>
 #include <vector>
 #include <sstream>
@@ -41,9 +42,7 @@ class Request {
 
             while (getline(ss, str)) {
                 if (regex_match(str, m, regex("(" TOKEN "):" OWS "((?:" CONTENT ")*)" OWS "\r"))) {
-                    string upper = m.str(1);
-                    transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
-                    HEADERS[string("HTTP_") + upper] = m.str(2);
+                    HEADERS[string("HTTP_") + boost::to_upper_copy<string>(m.str(1))] = m.str(2);
                 }
             }
         }
@@ -94,9 +93,8 @@ class Session : public enable_shared_from_this<Session> {
                 argv.push_back(NULL);
 
                 setenviron();
-                cout << "EXEC:" << argv.front() << endl;
+                cout << "EXEC: " << argv.front() << endl;
                 cout << "*************************************************************************" << endl;
-
 
                 dup2(_socket.native_handle(), 0);
                 dup2(_socket.native_handle(), 1);
