@@ -1,18 +1,60 @@
 #include <iostream>
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include <regex>
 #include <vector>
+#include <sstream>
+
+#define PCHAR "(?:[a-zA-Z0-9-._~!$&'/*+,;=:@]|%[a-fA-F0-9]{2})"
+#define TOKEN "(?:[-!#$%&'*+.^_`|~a-zA-Z0-9])+"
+#define VCHAR "(?:[\x21-\x7e])"
+#define OWS "(?:[ \t]*)"
+#define CONTENT "(?:" VCHAR "(?:[ \t]+" VCHAR ")?)"
 
 using namespace std;
 using namespace boost::asio;
 
 io_service global_io_service;
 
+class Request {
+    public:
+        string REQUEST_METHOD;
+        string REQUEST_URI;
+        string QUERY_STRING;
+        string SERVER_PROTOCOL;
+        map<string, string> HEADERS;
+
+        Request() {}
+
+        Request(string request) {
+            stringstream ss(request);
+            string str;
+            smatch m;
+
+            getline(ss, str);
+            if (regex_match(str, m, regex("(" TOKEN ") ((?:/" PCHAR "*){1,})(?:[?]?)((?:" PCHAR "|[/?])*) (HTTP/[0-9]\\.[0-9])\r"))) {
+                REQUEST_METHOD = m.str(1);
+                REQUEST_URI = m.str(2);
+                QUERY_STRING = m.str(3);
+                SERVER_PROTOCOL = m.str(4);
+            }
+
+            while (getline(ss, str)) {
+                if (regex_match(str, m, regex("(" TOKEN "):" OWS "((?:" CONTENT ")*)" OWS "\r"))) {
+                    string upper = m.str(1);
+                    transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+                    HEADERS[string("HTTP_") + upper] = m.str(2);
+                }
+            }
+        }
+};
+
 class Session : public enable_shared_from_this<Session> {
     private:
         enum { MAX_LENGTH = 1024 };
         ip::tcp::socket _socket;
         array<char, MAX_LENGTH> _data;
+        Request _request;
     
     public:
         Session(ip::tcp::socket socket) : _socket(move(socket)) {}
@@ -35,7 +77,10 @@ class Session : public enable_shared_from_this<Session> {
         }
 
         void cgi() {
-            auto self(shared_from_this());
+            cout << "*************************************************************************" << endl;
+            _request = Request(string(_data.data()));
+            cout << _data.data();
+
             int pid;
             global_io_service.notify_fork(io_service::fork_prepare);
             if ((pid = fork()) < 0) {
@@ -43,65 +88,62 @@ class Session : public enable_shared_from_this<Session> {
             } else if (pid == 0) {
                 global_io_service.notify_fork(io_service::fork_child);
 
-                setenviron();
-
-                string buf = string("./") + string(getenv("REQUEST_URI"));
+                string filename = boost::filesystem::current_path().string() + _request.REQUEST_URI;
                 vector<char*> argv;
-                argv.push_back((char*)buf.c_str());
+                argv.push_back((char*)filename.c_str());
                 argv.push_back(NULL);
 
-                cout << "exec:" << argv.front() << endl;
+                setenviron();
+                cout << "EXEC:" << argv.front() << endl;
+                cout << "*************************************************************************" << endl;
 
+
+                dup2(_socket.native_handle(), 0);
                 dup2(_socket.native_handle(), 1);
-                cout << getenv("SERVER_PROTOCOL") << " 200 OK" << endl;
+                dup2(_socket.native_handle(), 2);
+                cout << _request.SERVER_PROTOCOL << " 200 OK" << endl;
                 if (execvp(argv.front(), argv.data()) < 0) {
                     perror("Error");
                     exit(1);
                 }
             } else {
                 global_io_service.notify_fork(io_service::fork_parent);
+                _socket.close();
             }
         }
         
         void setenviron() {
-            // auto env = boost::this_process::environment();
-            string header(_data.data());
-            smatch m;
-
-            cout << header;
-
-            regex_search(header, m, regex("^[\\w]+"));
-            cout << "request_method: " << m.str(0) << endl;
-            setenv("REQUEST_METHOD", m.str(0).c_str(), 1);
-            // env["REQUEST_METHOD"] = m.str(0).c_str();
-
-            regex_search(header, m, regex("[\\w\\d]+\\.cgi"));
-            cout << "request_uri: " << m.str(0) << endl;
-            setenv("REQUEST_URI", m.str(0).c_str(), 1);
-
-            regex_search(header, m, regex("\\?([\\w\\d]+=.*&*)+"));
-            cout << "query_string: " << m.str(0) << endl;
-            setenv("QUERY_STRING", m.str(0).c_str(), 1);
+            environ = NULL;
             
-            regex_search(header, m, regex("[\\w]+/[\\d\\.]+"));
-            cout << "server_protocol: " << m[0] << endl;
-            setenv("SERVER_PROTOCOL", m.str(0).c_str(), 1);
+            setenv("REQUEST_METHOD", _request.REQUEST_METHOD.c_str(), 1);
+            setenv("REQUEST_URI", _request.REQUEST_URI.c_str(), 1);
+            setenv("QUERY_STRING", _request.QUERY_STRING.c_str(), 1);
+            setenv("SERVER_PROTOCOL", _request.SERVER_PROTOCOL.c_str(), 1);
+            
+            for (auto i:_request.HEADERS) {
+                setenv(i.first.c_str(), i.second.c_str(), 1);
+            }
 
-            regex_search(header, m, regex("[\\d]+\\.[\\d]+\\.[\\d]+\\.[\\d]+:[\\d]+"));
-            cout << "http_host: " << m.str(0) << endl;
-            setenv("HTTP_HOST", m.str(0).c_str(), 1);
-
-            cout << "server_addr: " << _socket.local_endpoint().address().to_string().c_str() << endl;
             setenv("SERVER_ADDR", _socket.local_endpoint().address().to_string().c_str(), 1);
-
-            cout << "server_port: " << _socket.local_endpoint().port() << endl;
             setenv("SERVER_PORT", to_string(_socket.local_endpoint().port()).c_str(), 1);
-
-            cout << "remote_addr: " << _socket.remote_endpoint().address() << endl;
             setenv("REMOTE_ADDR", _socket.remote_endpoint().address().to_string().c_str(), 1);
-
-            cout << "remote_port: " << _socket.remote_endpoint().port() << endl;
             setenv("REMOTE_PORT", to_string(_socket.remote_endpoint().port()).c_str(), 1);
+
+            cout << "-------------------------------------------------------------------------" << endl;
+            cout << "REQUEST_METHOD: " << _request.REQUEST_METHOD << endl;
+            cout << "REQUEST_URI: " << _request.REQUEST_URI << endl;
+            cout << "QUERY_STRING: " << _request.QUERY_STRING << endl;
+            cout << "SERVER_PROTOCOL: " << _request.SERVER_PROTOCOL << endl;
+
+            for (auto i:_request.HEADERS) {
+                cout << "" << i.first << ": " << i.second.c_str() << endl;
+            }
+
+            cout << "SERVER_ADDR: " << _socket.local_endpoint().address().to_string().c_str() << endl;
+            cout << "SERVER_PORT: " << _socket.local_endpoint().port() << endl;
+            cout << "REMOTE_ADDR: " << _socket.remote_endpoint().address() << endl;
+            cout << "REMOTE_PORT: " << _socket.remote_endpoint().port() << endl;
+            cout << "-------------------------------------------------------------------------" << endl;
         }
 };
 

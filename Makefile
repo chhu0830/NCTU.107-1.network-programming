@@ -1,5 +1,5 @@
 CXX					?= g++
-CXXFLAGS			+= -std=c++11 -Wall -Wextra -lboost_system -pthread -pedantic
+CXXFLAGS			+= -std=c++11 -Wall -Wextra -lboost_system -lboost_filesystem
 CXX_INCLUDE_DIRS	:= /usr/local/include
 CXX_LIB_DIRS		:= /usr/local/lib
 
