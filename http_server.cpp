@@ -18,16 +18,18 @@ using namespace boost::asio;
 io_service global_io_service;
 
 class Request {
-    public:
+    private:
         string REQUEST_METHOD;
         string REQUEST_URI;
         string QUERY_STRING;
         string SERVER_PROTOCOL;
         map<string, string> HEADERS;
 
+    public:
         Request() {}
 
-        Request(string request) {
+        Request(string request)
+        {
             stringstream ss(request);
             string str;
             smatch m;
@@ -42,10 +44,16 @@ class Request {
 
             while (getline(ss, str)) {
                 if (regex_match(str, m, regex("(" TOKEN "):" OWS "((?:" CONTENT ")*)" OWS "\r"))) {
-                    HEADERS[string("HTTP_") + boost::to_upper_copy<string>(m.str(1))] = m.str(2);
+                    HEADERS[m.str(1)] = m.str(2);
                 }
             }
         }
+
+        string request_method() { return REQUEST_METHOD; }
+        string request_uri() { return REQUEST_URI; }
+        string query_string() { return QUERY_STRING; }
+        string server_protocol() { return SERVER_PROTOCOL; }
+        map<string, string> headers() { return HEADERS; }
 };
 
 class Session : public enable_shared_from_this<Session> {
@@ -67,7 +75,7 @@ class Session : public enable_shared_from_this<Session> {
             auto self(shared_from_this());
             _socket.async_read_some(
                 buffer(_data, MAX_LENGTH),
-                [this, self](boost::system::error_code ec, size_t length) {
+                [this, self](boost::system::error_code ec, size_t) {
                     if (!ec) {
                         cgi();
                     }
@@ -87,19 +95,19 @@ class Session : public enable_shared_from_this<Session> {
             } else if (pid == 0) {
                 global_io_service.notify_fork(io_service::fork_child);
 
-                string filename = boost::filesystem::current_path().string() + _request.REQUEST_URI;
+                string filename = boost::filesystem::current_path().string() + _request.request_uri();
                 vector<char*> argv;
                 argv.push_back((char*)filename.c_str());
                 argv.push_back(NULL);
 
                 setenviron();
                 cout << "EXEC: " << argv.front() << endl;
-                cout << "*************************************************************************" << endl;
+                cout << "*************************************************************************" << endl << endl;
 
                 dup2(_socket.native_handle(), 0);
                 dup2(_socket.native_handle(), 1);
                 dup2(_socket.native_handle(), 2);
-                cout << _request.SERVER_PROTOCOL << " 200 OK" << endl;
+                cout << _request.server_protocol() << " 200 OK" << endl;
                 if (execvp(argv.front(), argv.data()) < 0) {
                     perror("Error");
                     exit(1);
@@ -113,13 +121,14 @@ class Session : public enable_shared_from_this<Session> {
         void setenviron() {
             environ = NULL;
             
-            setenv("REQUEST_METHOD", _request.REQUEST_METHOD.c_str(), 1);
-            setenv("REQUEST_URI", _request.REQUEST_URI.c_str(), 1);
-            setenv("QUERY_STRING", _request.QUERY_STRING.c_str(), 1);
-            setenv("SERVER_PROTOCOL", _request.SERVER_PROTOCOL.c_str(), 1);
+            setenv("REQUEST_METHOD", _request.request_method().c_str(), 1);
+            setenv("REQUEST_URI", _request.request_uri().c_str(), 1);
+            setenv("QUERY_STRING", _request.query_string().c_str(), 1);
+            setenv("SERVER_PROTOCOL", _request.server_protocol().c_str(), 1);
             
-            for (auto i:_request.HEADERS) {
-                setenv(i.first.c_str(), i.second.c_str(), 1);
+            for (auto i:_request.headers()) {
+                string variable = string("HTTP_") + boost::to_upper_copy<string>(i.first);
+                setenv(variable.c_str(), i.second.c_str(), 1);
             }
 
             setenv("SERVER_ADDR", _socket.local_endpoint().address().to_string().c_str(), 1);
@@ -128,12 +137,12 @@ class Session : public enable_shared_from_this<Session> {
             setenv("REMOTE_PORT", to_string(_socket.remote_endpoint().port()).c_str(), 1);
 
             cout << "-------------------------------------------------------------------------" << endl;
-            cout << "REQUEST_METHOD: " << _request.REQUEST_METHOD << endl;
-            cout << "REQUEST_URI: " << _request.REQUEST_URI << endl;
-            cout << "QUERY_STRING: " << _request.QUERY_STRING << endl;
-            cout << "SERVER_PROTOCOL: " << _request.SERVER_PROTOCOL << endl;
+            cout << "REQUEST_METHOD: " << _request.request_method() << endl;
+            cout << "REQUEST_URI: " << _request.request_uri() << endl;
+            cout << "QUERY_STRING: " << _request.query_string() << endl;
+            cout << "SERVER_PROTOCOL: " << _request.server_protocol() << endl;
 
-            for (auto i:_request.HEADERS) {
+            for (auto i:_request.headers()) {
                 cout << "" << i.first << ": " << i.second.c_str() << endl;
             }
 
@@ -151,10 +160,11 @@ class Server {
         ip::tcp::socket _socket;
 
     public:
-        Server(short port): _acceptor(global_io_service, ip::tcp::endpoint(ip::tcp::v4(), port)),
-                            _socket(global_io_service) {
-                                do_accept();
-                            }
+        Server(short port):
+            _acceptor(global_io_service, ip::tcp::endpoint(ip::tcp::v4(), port)),
+            _socket(global_io_service) {
+                do_accept();
+            }
 
     private:
         void do_accept() {
