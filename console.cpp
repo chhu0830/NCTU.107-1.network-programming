@@ -9,13 +9,11 @@ using namespace boost::asio;
 io_service global_io_service;
 
 class Session {
-    private:
-        int _count;
     public:
         Session(string query);
-        string plaintext(string raw);
-        void template_html();
-        void response_html(string id, string raw);
+        void html_template();
+        void html_addcontent(string id, string content);
+        string html_plaintext(string text);
 };
 
 class Client : public enable_shared_from_this<Client> {
@@ -92,7 +90,7 @@ void Client::do_read()
         buffer(_recvmsg, MAX_LENGTH-1),
         [this, self](boost::system::error_code ec, size_t length) {
             if (!ec) {
-                _session.response_html("s"+_id, _session.plaintext(string(_recvmsg.data())));
+                _session.html_addcontent("s" + _id, _session.html_plaintext(string(_recvmsg.data())));
                 if ((_flag && string(_recvmsg.data()).front() == ' ') || string(_recvmsg.data()).find("% ") != string::npos) {
                     do_write();
                 } else {
@@ -114,27 +112,30 @@ void Client::do_write()
         buffer(_sendmsg.c_str(), _sendmsg.length()),
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                _session.response_html("s"+_id, "<b>"+_session.plaintext(string(_sendmsg.data()))+"</b>");
+                _session.html_addcontent("s" + _id, "<b>" + _session.html_plaintext(string(_sendmsg.data())) + "</b>");
                 do_read();
             }
         }
     );
 }
 
-Session::Session(string query) : _count(0)
+Session::Session(string query)
 {
-    template_html();
+    html_template();
+
     const string QUERYREX = "h([0-9])=([a-zA-Z0-9.]*)&p[0-9]=([0-9]*)&f[0-9]=([a-zA-Z0-9.]*)";
     for (smatch m; regex_search(query, m, regex(QUERYREX)); query = m.suffix().str()) {
         if (m.str(2).length() && m.str(3).length() && m.str(4).length()) {
-            _count++;
-            response_html("h"+m.str(1), m.str(2)+":"+m.str(3));
+            html_addcontent("host", "<th scope=\"col\" id=\"h" + m.str(1) + "\"></th>");
+            html_addcontent("session", "<td><pre id=\"s" + m.str(1) + "\" class=\"mb-0\"></pre></td>");
+            html_addcontent("h" + m.str(1), m.str(2) + ":" + m.str(3));
+
             make_shared<Client>(*this, m.str(1), m.str(2), m.str(3), m.str(4))->start();
         }
     }
 }
 
-void Session::template_html()
+void Session::html_template()
 {
 	cout <<
         "<!DOCTYPE html>\n"
@@ -176,21 +177,11 @@ void Session::template_html()
         "<body>\n"
             "<table class=\"table table-dark table-bordered\">\n"
                 "<thead>\n"
-                    "<tr>\n"
-                        "<th scope=\"col\" id=\"h0\"></th>\n"
-                        "<th scope=\"col\" id=\"h1\"></th>\n"
-                        "<th scope=\"col\" id=\"h2\"></th>\n"
-                        "<th scope=\"col\" id=\"h3\"></th>\n"
-                        "<th scope=\"col\" id=\"h4\"></th>\n"
+                    "<tr id=\"host\">\n"
                     "</tr>\n"
                 "</thead>\n"
                 "<tbody>\n"
-                    "<tr>\n"
-                        "<td><pre id=\"s0\" class=\"mb-0\"></pre></td>\n"
-                        "<td><pre id=\"s1\" class=\"mb-0\"></pre></td>\n"
-                        "<td><pre id=\"s2\" class=\"mb-0\"></pre></td>\n"
-                        "<td><pre id=\"s3\" class=\"mb-0\"></pre></td>\n"
-                        "<td><pre id=\"s4\" class=\"mb-0\"></pre></td>\n"
+                    "<tr id=\"session\">\n"
                     "</tr>\n"
                 "</tbody>\n"
             "</table>\n"
@@ -198,10 +189,15 @@ void Session::template_html()
         "</html>\n";
 }
 
-string Session::plaintext(string raw)
+void Session::html_addcontent(string id, string content)
+{
+    cout << "<script>" << "document.getElementById('" << id << "').innerHTML += '" << content << "'</script>" << endl;
+}
+
+string Session::html_plaintext(string text)
 {
     string out;
-    for (auto &ch : raw) {
+    for (auto &ch : text) {
         if (ch == '<') {
             out += "&lt;";
         } else if (ch == '>') {
@@ -220,11 +216,6 @@ string Session::plaintext(string raw)
     }
 
     return out;
-}
-
-void Session::response_html(string id, string raw)
-{
-    cout << "<script>" << "document.getElementById('" + id + "').innerHTML += '" + raw + "'</script>" << endl;
 }
 
 int main(int argc, const char *argv[])
