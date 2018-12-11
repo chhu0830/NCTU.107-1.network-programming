@@ -1,19 +1,38 @@
 CXX					?= g++
-CXXFLAGS			+= -std=c++11 -Wall -Wextra -lboost_system -lboost_filesystem
-CXX_INCLUDE_DIRS	:= /usr/local/include
-CXX_LIB_DIRS		:= /usr/local/lib
+CXXFLAGS			+= -I/usr/local/include -std=c++11 -Wall -Wextra -pedantic -MMD -MF $@.d
+LDFLAGS				+= -L/usr/local/lib -lboost_system -lboost_filesystem -pthread
 
 STUDENT_ID			:= 0756020
-EXECUTALBE			:= http_server
+EXECUTABLE			:= http_server console.cgi
 
-all: $(EXECUTALBE)
-	cd test/env/ && ../../$(EXECUTALBE) 8000
+OUT					?= .build
+SRCS				:= $(wildcard *.cpp */*.cpp)
+OBJS				:= $(addprefix $(OUT)/, $(SRCS:.cpp=.o))
+DEPS				:= $(OBJS:.o=.o.d)
 
-%: %.cpp
-	$(CXX) $< -o $@ -I $(CXX_INCLUDE_DIRS) -L $(CXX_LIB_DIRS) $(CXXFLAGS)
+containing			= $(foreach v,$(2),$(if $(findstring $(1),$(v)),$(v),))
 
-run: $(EXECUTALBE)
-	./$(EXECUTALBE)
+all: run
+
+http_server: $(call containing,http,$(OBJS))
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+console.cgi: $(call containing,console,$(OBJS))
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+$(OUT)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $< -o $@ -c $(CXXFLAGS)
+
+run: $(EXECUTABLE)
+	cd ./test/ && ./http_server 8000
+
+zip:
+	@rm -rf $(STUDENT_ID) $(STUDENT_ID).zip ; mkdir $(STUDENT_ID)
+	@git ls-files | xargs -i cp {} $(STUDENT_ID)
+	@zip -r $(STUDENT_ID).zip $(STUDENT_ID) ; rm -rf $(STUDENT_ID)
 
 clean:
-	rm -rf $(EXECUTALBE)
+	rm -rf ./test/test_* $(OUT) $(STUDENT_ID) $(STUDENT_ID).zip $(EXECUTABLE)
+
+-include $(DEPS) 
