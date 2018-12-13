@@ -38,9 +38,9 @@ void Session::cgi() {
 
         setenviron();
 
-        dup2(_socket.native_handle(), 0);
-        dup2(_socket.native_handle(), 1);
-        dup2(_socket.native_handle(), 2);
+        dup2(_socket.native_handle(), STDIN_FILENO);
+        dup2(_socket.native_handle(), STDOUT_FILENO);
+        dup2(_socket.native_handle(), STDERR_FILENO);
         cout << _request.server_protocol() << " 200 OK" << endl;
         if (execvp(argv.front(), argv.data()) < 0) {
             perror("Error");

@@ -1,6 +1,8 @@
 #include <map>
+#include <boost/asio.hpp>
 
 using namespace std;
+using namespace boost::asio;
 
 class Target {
     private:
@@ -18,11 +20,12 @@ class Target {
         void file(string file) { _file = file; }
         string& host() { return _host; }
         string& port() { return _port; }
-        string& file() { return _file;}
+        string& file() { return _file; }
 };
 
 class Session {
     private:
+        ip::tcp::socket _socket;
         map<string, Target> _target;
 
     public:

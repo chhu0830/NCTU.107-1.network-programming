@@ -3,7 +3,9 @@
 #include "console_session.hpp"
 #include "console_client.hpp"
 
-Session::Session(string query)
+io_service global_io_service;
+
+Session::Session(string query) : _socket(global_io_service, ip::tcp::v4(), dup(STDOUT_FILENO))
 {
     html_template();
 
@@ -35,7 +37,7 @@ Session::Session(string query)
 
 void Session::html_template()
 {
-	cout <<
+    string html(
         "<!DOCTYPE html>\n"
         "<html lang=\"en\">\n"
         "<head>\n"
@@ -84,12 +86,15 @@ void Session::html_template()
                 "</tbody>\n"
             "</table>\n"
         "</body>\n"
-        "</html>\n";
+        "</html>\n");
+
+    _socket.write_some(buffer(html));
 }
 
 void Session::html_addcontent(string id, string content)
 {
-    cout << "<script>" << "document.getElementById('" << id << "').innerHTML += '" << content << "'</script>" << endl;
+    string js = "<script>document.getElementById('" + id + "').innerHTML += '" + content + "'</script>";
+    _socket.write_some(buffer(js));
 }
 
 string Session::html_plaintext(string text)

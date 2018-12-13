@@ -1,7 +1,7 @@
 #include "console_session.hpp"
 #include "console_client.hpp"
 
-io_service global_io_service;
+extern io_service global_io_service;
 
 Client::Client(Session &session, const string id) :
     _session(session),
@@ -10,7 +10,7 @@ Client::Client(Session &session, const string id) :
 	_id(id),
     _host(session.target(id).host()),
     _port(session.target(id).port()),
-    _fin(string("test_case/") + session.target(id).file(), ifstream::in) {}
+    _fin("test_case/" + session.target(id).file(), ifstream::in) {}
 
 void Client::start()
 {
