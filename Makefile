@@ -12,7 +12,7 @@ DEPS				:= $(OBJS:.o=.o.d)
 
 containing			= $(foreach v,$(2),$(if $(findstring $(1),$(v)),$(v),))
 
-all: run
+all: $(EXECUTABLE)
 
 http_server: $(call containing,http,$(OBJS))
 	$(CXX) $^ -o $@ $(LDFLAGS)
