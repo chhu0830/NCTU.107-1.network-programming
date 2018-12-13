@@ -33,6 +33,6 @@ zip:
 	@zip -r $(STUDENT_ID).zip $(STUDENT_ID) ; rm -rf $(STUDENT_ID)
 
 clean:
-	rm -rf ./test/test_* $(OUT) $(STUDENT_ID) $(STUDENT_ID).zip $(EXECUTABLE)
+	rm -rf $(OUT) $(STUDENT_ID) $(STUDENT_ID).zip $(EXECUTABLE)
 
 -include $(DEPS) 
