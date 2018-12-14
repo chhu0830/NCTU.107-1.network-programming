@@ -4,13 +4,13 @@
 extern io_service global_io_service;
 
 Client::Client(Session &session, const string id) :
-    _session(session),
-    _resolver(global_io_service),
-    _socket(global_io_service),
-	_id(id),
-    _host(session.target(id).host()),
-    _port(session.target(id).port()),
-    _fin("test_case/" + session.target(id).file(), ifstream::in) {}
+    session_(session),
+    resolver_(global_io_service),
+    socket_(global_io_service),
+	id_(id),
+    host_(session.target(id).host()),
+    port_(session.target(id).port()),
+    fin_("test_case/" + session.target(id).file(), ifstream::in) {}
 
 void Client::start()
 {
@@ -20,13 +20,13 @@ void Client::start()
 void Client::do_resolve()
 {
     auto self(shared_from_this());
-    _resolver.async_resolve(
-        ip::tcp::resolver::query(_host, _port),
+    resolver_.async_resolve(
+        ip::tcp::resolver::query(host_, port_),
         [this, self](boost::system::error_code ec, ip::tcp::resolver::iterator it) {
             if (!ec) {
                 do_connect(it);
             } else {
-                _session.html_addcontent(_id, ec.message());
+                session_.html_addcontent(id_, ec.message());
             }
         }
     );
@@ -37,13 +37,13 @@ void Client::do_connect(ip::tcp::resolver::iterator it)
     auto self(shared_from_this());
 
     async_connect(
-        _socket,
+        socket_,
         it,
         [this, self](boost::system::error_code ec, ip::tcp::resolver::iterator) {
             if (!ec) {
                 do_read();
             } else {
-                _session.html_addcontent(_id, ec.message());
+                session_.html_addcontent(id_, ec.message());
             }
         }
     );
@@ -53,16 +53,16 @@ void Client::do_read()
 {
     auto self(shared_from_this());
 
-    fill(_recvmsg.begin(), _recvmsg.end(), '\0');
-    _socket.async_read_some(
-        buffer(_recvmsg, MAX_LENGTH-1),
+    fill(recvmsg_.begin(), recvmsg_.end(), '\0');
+    socket_.async_read_some(
+        buffer(recvmsg_, MAX_LENGTH-1),
         [this, self](boost::system::error_code ec, size_t length) {
             if (!ec) {
-                _session.html_addcontent(_id, _session.html_plaintext(string(_recvmsg.data())));
-                if ((_flag && string(_recvmsg.data()).front() == ' ') || string(_recvmsg.data()).find("% ") != string::npos) {
+                session_.html_addcontent(id_, session_.html_plaintext(recvmsg_.data()));
+                if ((flag_ && string(recvmsg_.data()).front() == ' ') || string(recvmsg_.data()).find("% ") != string::npos) {
                     do_write();
                 } else {
-                    _flag = (_recvmsg[length-1] == '%');
+                    flag_ = (recvmsg_[length-1] == '%');
                     do_read();
                 }
             }
@@ -73,14 +73,14 @@ void Client::do_read()
 void Client::do_write()
 {
     auto self(shared_from_this());
-    getline(_fin, _sendmsg);
-    _sendmsg += "\n";
+    getline(fin_, sendmsg_);
+    sendmsg_ += "\n";
     
-    _socket.async_send(
-        buffer(_sendmsg.c_str(), _sendmsg.length()),
+    socket_.async_send(
+        buffer(sendmsg_.c_str(), sendmsg_.length()),
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                _session.html_addcontent(_id, "<b>" + _session.html_plaintext(string(_sendmsg.data())) + "</b>");
+                session_.html_addcontent(id_, "<b>" + session_.html_plaintext(sendmsg_) + "</b>");
                 do_read();
             }
         }

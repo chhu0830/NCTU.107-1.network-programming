@@ -20,13 +20,13 @@ using namespace std;
 
 class Request {
     private:
-        string _request_method;
-        string _request_uri;
-        string _script_name;
-        string _script_filename;
-        string _query_string;
-        string _server_protocol;
-        map<string, string> _headers;
+        string request_method_;
+        string request_uri_;
+        string script_name_;
+        string script_filename_;
+        string query_string_;
+        string server_protocol_;
+        map<string, string> headers_;
 
     public:
         Request();

@@ -6,27 +6,23 @@ using namespace boost::asio;
 
 class Target {
     private:
-        string _host, _port, _file;
+        string host_, port_, file_;
 
     public:
         Target() {}
-
-        bool valid() {
-            return _host.length() && _port.length() && _file.length();
-        }
-
-        void host(string host) { _host = host; }
-        void port(string port) { _port = port; }
-        void file(string file) { _file = file; }
-        string& host() { return _host; }
-        string& port() { return _port; }
-        string& file() { return _file; }
+        bool valid();
+        void host(string host);
+        void port(string port);
+        void file(string file);
+        string& host();
+        string& port();
+        string& file();
 };
 
 class Session {
     private:
-        ip::tcp::socket _socket;
-        map<string, Target> _target;
+        ip::tcp::socket socket_;
+        map<string, Target> target_;
 
     public:
         Session(string query);

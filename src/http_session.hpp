@@ -6,9 +6,9 @@ using namespace boost::asio;
 class Session : public enable_shared_from_this<Session> {
     private:
         enum { MAX_LENGTH = 1024 };
-        ip::tcp::socket _socket;
-        array<char, MAX_LENGTH> _data;
-        Request _request;
+        ip::tcp::socket socket_;
+        array<char, MAX_LENGTH> data_;
+        Request request_;
     
     public:
         Session(ip::tcp::socket socket);

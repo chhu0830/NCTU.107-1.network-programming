@@ -12,52 +12,52 @@ Request::Request(string request)
 
     getline(ss, str);
     if (regex_match(str, m, regex(REQUEST_LINE))) {
-        _request_method = m.str(1);
-        _request_uri = m.str(2);
-        _script_name = m.str(3);
-        _script_filename = boost::filesystem::current_path().string() + _script_name;
-        _query_string = m.str(4);
-        _server_protocol = m.str(5);
+        request_method_ = m.str(1);
+        request_uri_ = m.str(2);
+        script_name_ = m.str(3);
+        script_filename_ = boost::filesystem::current_path().string() + script_name_;
+        query_string_ = m.str(4);
+        server_protocol_ = m.str(5);
     }
 
     while (getline(ss, str)) {
         if (regex_match(str, m, regex(HEADER_FIELD))) {
-            _headers[m.str(1)] = m.str(2);
+            headers_[m.str(1)] = m.str(2);
         }
     }
 }
 
 string& Request::request_method()
 {
-    return _request_method;
+    return request_method_;
 }
 
 string& Request::request_uri()
 {
-    return _request_uri;
+    return request_uri_;
 }
 
 string& Request::script_name()
 {
-    return _script_name;
+    return script_name_;
 }
 
 string& Request::script_filename()
 {
-    return _script_filename;
+    return script_filename_;
 }
 
 string& Request::query_string()
 {
-    return _query_string;
+    return query_string_;
 }
 
 string& Request::server_protocol()
 {
-    return _server_protocol;
+    return server_protocol_;
 }
 
 map<string, string>& Request::headers()
 {
-    return _headers;
+    return headers_;
 }

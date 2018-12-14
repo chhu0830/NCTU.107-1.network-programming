@@ -5,7 +5,42 @@
 
 io_service global_io_service;
 
-Session::Session(string query) : _socket(global_io_service, ip::tcp::v4(), dup(STDOUT_FILENO))
+bool Target::valid()
+{
+    return host_.length() && port_.length() && file_.length();
+}
+
+void Target::host(string host)
+{
+    host_ = host;
+}
+
+void Target::port(string port)
+{
+    port_ = port;
+}
+
+void Target::file(string file)
+{
+    file_ = file;
+}
+
+string& Target::host()
+{
+    return host_;
+}
+
+string& Target::port()
+{
+    return port_;
+}
+
+string& Target::file()
+{
+    return file_;
+}
+
+Session::Session(string query) : socket_(global_io_service, ip::tcp::v4(), dup(STDOUT_FILENO))
 {
     html_template();
 
@@ -17,15 +52,15 @@ Session::Session(string query) : _socket(global_io_service, ip::tcp::v4(), dup(S
         string val = s.substr(pos+1);
 
         if (var[0] == 'h') {
-            _target["s" + var.substr(1)].host(val);
+            target_["s" + var.substr(1)].host(val);
         } else if (var[0] == 'p') {
-            _target["s" + var.substr(1)].port(val);
+            target_["s" + var.substr(1)].port(val);
         } else if (var[0] == 'f') {
-            _target["s" + var.substr(1)].file(val);
+            target_["s" + var.substr(1)].file(val);
         }
     }
 
-    for (auto &i : _target) {
+    for (auto &i : target_) {
         if (i.second.valid()) {
             html_addcontent("host", "<th scope=\"col\">" + i.second.host() + ":" + i.second.port() + "</th>");
             html_addcontent("session", "<td><pre id=\"" + i.first + "\" class=\"mb-0\"></pre></td>");
@@ -88,13 +123,13 @@ void Session::html_template()
         "</body>\n"
         "</html>\n");
 
-    _socket.write_some(buffer(html));
+    socket_.write_some(buffer(html));
 }
 
 void Session::html_addcontent(string id, string content)
 {
     string js = "<script>document.getElementById('" + id + "').innerHTML += '" + content + "'</script>";
-    _socket.write_some(buffer(js));
+    socket_.write_some(buffer(js));
 }
 
 string Session::html_plaintext(string text)
@@ -123,5 +158,5 @@ string Session::html_plaintext(string text)
 
 Target& Session::target(string id)
 {
-    return _target[id];
+    return target_[id];
 }

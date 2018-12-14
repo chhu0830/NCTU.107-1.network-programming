@@ -4,8 +4,8 @@ using namespace boost::asio;
 
 class Server {
     private:
-        ip::tcp::acceptor _acceptor;
-        ip::tcp::socket _socket;
+        ip::tcp::acceptor acceptor_;
+        ip::tcp::socket socket_;
 
     public:
         Server(short port);
