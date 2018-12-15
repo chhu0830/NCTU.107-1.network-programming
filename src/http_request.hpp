@@ -11,9 +11,8 @@
 #define METHOD TOKEN
 #define REQUEST_LINE "(" METHOD ") (" REQUEST_TARGET ") (" HTTP_VERSION ")\r"
 
-#define FIELD_CONTENT "(?:" VCHAR "(?:[ \t]+" VCHAR ")?)"
-#define FIELD_VALUE "(?:(?:" FIELD_CONTENT ")*)"
-#define FIELD_NAME "(?:" TOKEN ")"
+#define FIELD_VALUE "(?:" VCHAR "(?:[ \t]+" VCHAR ")?)*"
+#define FIELD_NAME TOKEN
 #define HEADER_FIELD "(" FIELD_NAME "):" OWS "(" FIELD_VALUE ")" OWS "\r"
 
 using namespace std;

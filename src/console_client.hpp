@@ -1,15 +1,15 @@
-#include <memory>
-#include <boost/asio.hpp>
 #include <fstream>
+#include <boost/asio.hpp>
 
 using namespace std;
 using namespace boost::asio;
 
-class Client : public enable_shared_from_this<Client>
-{
+class Session;
+
+class Client : public enable_shared_from_this<Client> {
     private:
         enum { MAX_LENGTH = 1024 };
-        Session &session_;
+        shared_ptr<Session> session_;
         ip::tcp::resolver resolver_;
         ip::tcp::socket socket_;
         string id_, host_, port_;
@@ -19,7 +19,7 @@ class Client : public enable_shared_from_this<Client>
         bool flag_;
 
     public:
-        Client(Session &session, const string id);
+        Client(shared_ptr<Session> session, const string id);
         void start();
 
     private:

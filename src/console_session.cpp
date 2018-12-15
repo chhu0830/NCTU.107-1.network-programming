@@ -1,8 +1,58 @@
+#include "console_session.hpp"
 #include <iostream>
 #include <sstream>
-#include "console_session.hpp"
 #include "console_client.hpp"
 
+static const std::string CONSOLE(
+"<!DOCTYPE html>\n"
+"<html lang=\"en\">\n"
+"  <head>\n"
+"    <meta charset=\"UTF-8\" />\n"
+"    <title>NP Project 3 Console</title>\n"
+"    <link\n"
+"      rel=\"stylesheet\"\n"
+"      href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css\"\n"
+"      integrity=\"sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO\"\n"
+"      crossorigin=\"anonymous\"\n"
+"    />\n"
+"    <link\n"
+"      href=\"https://fonts.googleapis.com/css?family=Source+Code+Pro\"\n"
+"      rel=\"stylesheet\"\n"
+"    />\n"
+"    <link\n"
+"      rel=\"icon\"\n"
+"      type=\"image/png\"\n"
+"      href=\"https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678068-terminal-512.png\"\n"
+"    />\n"
+"    <style>\n"
+"      * {\n"
+"        font-family: 'Source Code Pro', monospace;\n"
+"        font-size: 1rem !important;\n"
+"      }\n"
+"      body {\n"
+"        background-color: #212529;\n"
+"      }\n"
+"      pre {\n"
+"        color: #cccccc;\n"
+"      }\n"
+"      b {\n"
+"        color: #ffffff;\n"
+"      }\n"
+"    </style>\n"
+"  </head>\n"
+"  <body>\n"
+"    <table class=\"table table-dark table-bordered\">\n"
+"      <thead>\n"
+"        <tr id=\"host\">\n"
+"        </tr>\n"
+"      </thead>\n"
+"      <tbody>\n"
+"        <tr id=\"session\">\n"
+"        </tr>\n"
+"      </tbody>\n"
+"    </table>\n"
+"  </body>\n"
+"</html>\n");
 io_service global_io_service;
 
 bool Target::valid()
@@ -40,12 +90,11 @@ string& Target::file()
     return file_;
 }
 
-Session::Session(string query) : socket_(global_io_service, ip::tcp::v4(), dup(STDOUT_FILENO))
+Session::Session(posix::stream_descriptor out, string query) : out_(move(out)), flag_(true)
 {
-    html_template();
-
     string s;
     stringstream ss(query);
+
     while (getline(ss, s, '&')) {
         int pos = s.find("=");
         string var = s.substr(0, pos);
@@ -59,80 +108,65 @@ Session::Session(string query) : socket_(global_io_service, ip::tcp::v4(), dup(S
             target_["s" + var.substr(1)].file(val);
         }
     }
+}
+
+void Session::start()
+{
+    html_console();
 
     for (auto &i : target_) {
         if (i.second.valid()) {
-            html_addcontent("host", "<th scope=\"col\">" + i.second.host() + ":" + i.second.port() + "</th>");
+            html_addcontent("host", "<th scope=\"col\">" + i.second.host() + ":" + html_escape(i.second.port()) + "</th>");
             html_addcontent("session", "<td><pre id=\"" + i.first + "\" class=\"mb-0\"></pre></td>");
 
-            make_shared<Client>(*this, i.first)->start();
+            make_shared<Client>(shared_from_this(), i.first)->start();
         }
     }
 }
 
-void Session::html_template()
+void Session::html_console()
 {
-    string html(
-        "<!DOCTYPE html>\n"
-        "<html lang=\"en\">\n"
-        "<head>\n"
-            "<meta charset=\"UTF-8\" />\n"
-            "<title>NP Project 3 Console</title>\n"
-            "<link\n"
-                "rel=\"stylesheet\"\n"
-                "href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css\"\n"
-                "integrity=\"sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO\"\n"
-                "crossorigin=\"anonymous\"\n"
-            "/>\n"
-            "<link\n"
-                "href=\"https://fonts.googleapis.com/css?family=Source+Code+Pro\"\n"
-                "rel=\"stylesheet\"\n"
-            "/>\n"
-            "<link\n"
-                "rel=\"icon\"\n"
-                "type=\"image/png\"\n"
-                "href=\"https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678068-terminal-512.png\"\n"
-            "/>\n"
-            "<style>\n"
-                "* {\n"
-                    "font-family: 'Source Code Pro', monospace;\n"
-                    "font-size: 1rem !important;\n"
-                "}\n"
-                "body {\n"
-                    "background-color: #212529;\n"
-                "}\n"
-                "pre {\n"
-                    "color: #cccccc;\n"
-                "}\n"
-                "b {\n"
-                    "color: #ffffff;\n"
-                "}\n"
-            "</style>\n"
-        "</head>\n"
-        "<body>\n"
-            "<table class=\"table table-dark table-bordered\">\n"
-                "<thead>\n"
-                    "<tr id=\"host\">\n"
-                    "</tr>\n"
-                "</thead>\n"
-                "<tbody>\n"
-                    "<tr id=\"session\">\n"
-                    "</tr>\n"
-                "</tbody>\n"
-            "</table>\n"
-        "</body>\n"
-        "</html>\n");
-
-    socket_.write_some(buffer(html));
+    auto self(shared_from_this());
+    out_.async_write_some(
+        buffer(CONSOLE),
+        [self](boost::system::error_code ec, size_t) {
+            if (ec) {
+                cerr << ec.message() << endl;
+            }
+        }
+    );
 }
 
 void Session::html_addcontent(string id, string content)
 {
-    string js = "<script>document.getElementById('" + id + "').innerHTML += '" + content + "'</script>";
-    socket_.write_some(buffer(js));
+    buf_ += "<script>document.getElementById('" + id + "').innerHTML += '" + content + "'</script>";
+    if (flag_) {
+        flag_ = false;
+        html_response();
+    }
 }
 
-string Session::html_plaintext(string text)
+void Session::html_response()
+{
+    auto self(shared_from_this());
+    out_.async_write_some(
+        buffer(buf_),
+        [this, self](boost::system::error_code ec, size_t length) {
+            if (!ec) {
+                buf_.erase(0, length);
+                if (buf_.length()) {
+                    html_response();
+                } else {
+                    flag_ = true;
+                }
+            } else {
+                cerr << ec.message() << endl;
+            }
+        }
+    );
+}
+
+string Session::html_escape(string text)
 {
     string out;
     for (auto &ch : text) {

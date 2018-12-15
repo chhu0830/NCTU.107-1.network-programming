@@ -26,7 +26,8 @@ void Session::do_read()
     );
 }
 
-void Session::cgi() {
+void Session::cgi()
+{
     request_ = Request(data_.data());
 
     int pid;
@@ -42,8 +43,9 @@ void Session::cgi() {
 
         dup2(socket_.native_handle(), STDIN_FILENO);
         dup2(socket_.native_handle(), STDOUT_FILENO);
-        dup2(socket_.native_handle(), STDERR_FILENO);
-        cout << request_.server_protocol() << " 200 OK" << endl;
+        // dup2(socket_.native_handle(), STDERR_FILENO);
+        // cout << request_.server_protocol() << " 200 OK" << endl;
+        cout << "HTTP/1.1 200 OK" << endl;
         if (execvp(argv.front(), argv.data()) < 0) {
             perror("Error");
             exit(1);
@@ -54,7 +56,8 @@ void Session::cgi() {
     }
 }
 
-void Session::setenviron() {
+void Session::setenviron()
+{
     environ = NULL;
     
     for (const auto i : request_.headers()) {

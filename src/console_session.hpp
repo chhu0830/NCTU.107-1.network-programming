@@ -1,4 +1,3 @@
-#include <map>
 #include <boost/asio.hpp>
 
 using namespace std;
@@ -19,15 +18,19 @@ class Target {
         string& file();
 };
 
-class Session {
+class Session : public enable_shared_from_this<Session> {
     private:
-        ip::tcp::socket socket_;
+        posix::stream_descriptor out_;
         map<string, Target> target_;
+        string buf_;
+        bool flag_;
+        void html_response();
 
     public:
-        Session(string query);
-        void html_template();
+        Session(posix::stream_descriptor out, string query);
+        void start();
+        void html_console();
         void html_addcontent(string id, string content);
-        string html_plaintext(string text);
+        string html_escape(string text);
         Target& target(string id);
 };
