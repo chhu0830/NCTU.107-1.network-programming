@@ -28,7 +28,6 @@ void Session::do_read()
 
 void Session::cgi()
 {
-    auto self(shared_from_this());
     request_ = Request(data_.data());
 
     int pid;
@@ -37,24 +36,28 @@ void Session::cgi()
         perror("Error");
     } else if (pid == 0) {
         global_io_service.notify_fork(io_service::fork_child);
-
-        vector<char*> argv({(char*)request_.script_filename().c_str(), NULL});
+        auto self(shared_from_this());
 
         setenviron();
 
         dup2(socket_.native_handle(), STDIN_FILENO);
         dup2(socket_.native_handle(), STDOUT_FILENO);
         // dup2(socket_.native_handle(), STDERR_FILENO);
-        // cout << request_.server_protocol() << " 200 OK" << endl;
-        // cout << "HTTP/1.1 200 OK" << endl;
+
         socket_.async_write_some(
-            buffer("HTTP/1.1 200 OK"),
-            [self](boost::system::error_code, size_t) {}
+            buffer("HTTP/1.0 200 OK\r\n"),
+            [this, self](boost::system::error_code ec, size_t) {
+                if (!ec) {
+                    vector<char*> argv({(char*)request_.script_filename().c_str(), NULL});
+                    if (execvp(argv.front(), argv.data()) < 0) {
+                        perror("Error");
+                        exit(1);
+                    }
+                } else {
+                    cerr << ec.message() << endl;
+                }
+            }
         );
-        if (execvp(argv.front(), argv.data()) < 0) {
-            perror("Error");
-            exit(1);
-        }
     } else {
         global_io_service.notify_fork(io_service::fork_parent);
         socket_.close();
