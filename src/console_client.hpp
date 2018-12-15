@@ -13,10 +13,10 @@ class Client : public enable_shared_from_this<Client> {
         ip::tcp::resolver resolver_;
         ip::tcp::socket socket_;
         string id_, host_, port_;
+        bool flag_;
         ifstream fin_;
         array<char, MAX_LENGTH> recvmsg_;
         string sendmsg_;
-        bool flag_;
 
     public:
         Client(shared_ptr<Session> session, const string id);

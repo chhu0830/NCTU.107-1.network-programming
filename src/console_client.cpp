@@ -10,6 +10,7 @@ Client::Client(shared_ptr<Session> session, const string id) :
 	id_(id),
     host_(session->target(id).host()),
     port_(session->target(id).port()),
+    flag_(false),
     fin_("test_case/" + session->target(id).file(), ifstream::in) {}
 
 void Client::start()
@@ -53,18 +54,21 @@ void Client::do_read()
 {
     auto self(shared_from_this());
 
-    fill(recvmsg_.begin(), recvmsg_.end(), '\0');
     socket_.async_read_some(
         buffer(recvmsg_, MAX_LENGTH - 1),
         [this, self](boost::system::error_code ec, size_t length) {
             if (!ec) {
-                session_->html_addcontent(id_, session_->html_escape(recvmsg_.data()));
-                if ((flag_ && string(recvmsg_.data()).front() == ' ') || string(recvmsg_.data()).find("% ") != string::npos) {
-                    do_write();
-                } else {
-                    flag_ = (recvmsg_[length - 1] == '%');
-                    do_read();
+                string received(recvmsg_.data(), length);
+                session_->html_addcontent(id_, session_->html_escape(received));
+
+                for (auto &ch : received) {
+                    if (flag_ && (ch == ' ')) {
+                        flag_ = false;
+                        do_write();
+                    }
+                    flag_ = (ch == '%');
                 }
+                do_read();
             }
         }
     );
@@ -81,7 +85,6 @@ void Client::do_write()
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
                 session_->html_addcontent(id_, "<b>" + session_->html_escape(sendmsg_) + "</b>");
-                do_read();
             }
         }
     );

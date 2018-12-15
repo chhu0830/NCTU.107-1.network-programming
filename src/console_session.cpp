@@ -116,7 +116,9 @@ void Session::start()
 
     for (auto &i : target_) {
         if (i.second.valid()) {
-            html_addcontent("host", "<th scope=\"col\">" + i.second.host() + ":" + html_escape(i.second.port()) + "</th>");
+            html_addcontent("host", "<th scope=\"col\">" + i.second.host() +
+                                    ":" + html_escape(i.second.port()) +
+                                    " [" + i.second.file() + "]" + "</th>");
             html_addcontent("session", "<td><pre id=\"" + i.first + "\" class=\"mb-0\"></pre></td>");
 
             make_shared<Client>(shared_from_this(), i.first)->start();
@@ -135,9 +137,7 @@ void Session::html_console()
             }
         }
     );
-}
-
-void Session::html_addcontent(string id, string content)
+} void Session::html_addcontent(string id, string content)
 {
     buf_ += "<script>document.getElementById('" + id + "').innerHTML += '" + content + "'</script>";
     if (flag_) {

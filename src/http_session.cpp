@@ -28,6 +28,7 @@ void Session::do_read()
 
 void Session::cgi()
 {
+    auto self(shared_from_this());
     request_ = Request(data_.data());
 
     int pid;
@@ -45,7 +46,11 @@ void Session::cgi()
         dup2(socket_.native_handle(), STDOUT_FILENO);
         // dup2(socket_.native_handle(), STDERR_FILENO);
         // cout << request_.server_protocol() << " 200 OK" << endl;
-        cout << "HTTP/1.1 200 OK" << endl;
+        // cout << "HTTP/1.1 200 OK" << endl;
+        socket_.async_write_some(
+            buffer("HTTP/1.1 200 OK"),
+            [self](boost::system::error_code, size_t) {}
+        );
         if (execvp(argv.front(), argv.data()) < 0) {
             perror("Error");
             exit(1);
