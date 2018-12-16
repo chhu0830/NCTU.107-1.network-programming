@@ -180,6 +180,8 @@ string Session::html_escape(string text)
             out += "&quot;";
         } else if (ch == '\'') {
             out += "&#039;";
+        } else if (ch == '\\') {
+            out += "&#092;";
         } else if (ch == '\n') {
             out += "&NewLine;";
         } else if (ch != '\r') {

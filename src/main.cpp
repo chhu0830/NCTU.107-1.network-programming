@@ -632,6 +632,9 @@ string Console_Session::html_escape(string text)
 		else if (ch == '\'') {
 			out += "&#039;";
 		}
+		else if (ch == '\\') {
+			out += "&#092;";
+		}
 		else if (ch == '\n') {
 			out += "&NewLine;";
 		}
