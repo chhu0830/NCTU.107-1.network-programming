@@ -191,7 +191,7 @@ void Session::show_info()
     cout << "<D_PORT>\t:" << request_.port() << endl;
     cout << "<Command>\t:" << (request_.command() == 1 ? "CONNECT" : "BIND") << endl;
     cout << "<Reply>\t:" << (request_.reply() == 90 ? "ACCEPT" : "REJECT") << endl;
-    cout << "Content>\t:" << string(src_buffer_.data(), 10) << endl;;
+    cout << "<Content>\t:" << string(src_buffer_.data(), 100) << endl;;
 }
 
 // 0: send, 1: recv
