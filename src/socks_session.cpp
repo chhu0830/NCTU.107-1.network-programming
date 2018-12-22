@@ -68,6 +68,11 @@ string Request::userid()
     return string(userid_.data());
 }
 
+bool Request::accept()
+{
+    return (reply_ == 90);
+}
+
 void Request::vn(uint8_t version)
 {
     vn_ = version;
@@ -156,6 +161,7 @@ void Session::do_connect(ip::tcp::resolver::iterator it)
                 write_reply(90);
             } else {
                 cerr << "do_connect: " << ec.message() << endl;
+                write_reply(91);
             }
         }
     );
@@ -174,8 +180,10 @@ void Session::write_reply(uint8_t command)
         request_.to_buffers(),
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                do_read(0);
-                do_read(1);
+                if (request_.accept()) {
+                    do_read(0);
+                    do_read(1);
+                }
             } else {
                 cerr << "write_reply: " << ec.message() << endl;
             }

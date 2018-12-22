@@ -26,6 +26,7 @@ class Request {
         uint16_t port();
         string addr();
         string userid();
+        bool accept();
         void vn(uint8_t version);
         void cd(uint8_t command);
         void command(uint8_t command);
