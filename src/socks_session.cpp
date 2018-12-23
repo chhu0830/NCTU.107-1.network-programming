@@ -7,6 +7,9 @@ extern io_service global_io_service;
 /*========== Request ==========*/
 Request::Request() {}
 
+Request::Request(uint8_t vn, uint8_t cd, uint16_t port, array<uint8_t, 4> addr) :
+    vn_(vn), cd_(cd), port_(port), addr_(addr) {}
+
 vector<mutable_buffer> Request::to_buffers()
 {
     return {
@@ -43,16 +46,6 @@ uint8_t Request::cd()
     return cd_;
 }
 
-uint8_t Request::command()
-{
-    return command_;
-}
-
-uint8_t Request::reply()
-{
-    return reply_;
-}
-
 uint16_t Request::port()
 {
     return ntohs(port_);
@@ -70,7 +63,7 @@ string Request::userid()
 
 bool Request::accept()
 {
-    return (reply_ == 90);
+    return (cd_ == 90);
 }
 
 void Request::vn(uint8_t version)
@@ -83,14 +76,14 @@ void Request::cd(uint8_t cd)
     cd_ = cd;
 }
 
-void Request::command(uint8_t command)
+void Request::port(uint16_t port)
 {
-    command_ = command;
+    port_ = port;
 }
 
-void Request::reply(uint8_t reply)
+void Request::addr(array<uint8_t, 4> addr)
 {
-    reply_ = reply;
+    addr_ = addr;
 }
 
 /*========== Session ==========*/
@@ -98,6 +91,7 @@ Session::Session(ip::tcp::socket socket) :
     src_socket_(move(socket)),
     dst_socket_(global_io_service),
     resolver_(global_io_service),
+    acceptor_(global_io_service, ip::tcp::endpoint(ip::tcp::v4(), 0)),
     flag(true) {}
 
 void Session::start()
@@ -127,9 +121,39 @@ void Session::read_userid()
         request_.userid_to_buffer(),
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                do_resolve();
+                if (request_.cd() == 1) {
+                    do_resolve();
+                } else {
+                    do_accept();
+                    reply_ = Request(0, 90, htons(acceptor_.local_endpoint().port()), {0, 0, 0, 0});
+                    write_reply();
+                }
             } else {
                 cerr << "read_userid: " << ec.message() << endl;
+            }
+        }
+    );
+}
+
+void Session::do_accept()
+{
+    auto self(shared_from_this());
+    acceptor_.async_accept(
+        dst_socket_,
+        [this, self](boost::system::error_code ec) {
+            if (!ec) {
+                reply_ = request_;
+                reply_.vn(0);
+
+                if (request_.addr() == dst_socket_.remote_endpoint().address().to_string()) {
+                    reply_.cd(90);
+                } else {
+                    reply_.cd(91);
+                }
+
+                write_reply();
+            } else {
+                cerr << "do_accept: " << ec.message() << endl;
             }
         }
     );
@@ -157,30 +181,30 @@ void Session::do_connect(ip::tcp::resolver::iterator it)
         dst_socket_,
         it,
         [this, self](boost::system::error_code ec, ip::tcp::resolver::iterator) {
+            reply_ = request_;
+            reply_.vn(0);
+
             if (!ec) {
-                write_reply(90);
+                reply_.cd(90);
             } else {
                 cerr << "do_connect: " << ec.message() << endl;
-                write_reply(91);
+                reply_.cd(91);
             }
+
+            write_reply();
         }
     );
 }
 
-void Session::write_reply(uint8_t command)
+void Session::write_reply()
 {
     auto self(shared_from_this());
 
-    request_.vn(0);
-    request_.command(request_.cd());
-    request_.cd(command);
-    request_.reply(command);
-
     src_socket_.async_write_some(
-        request_.to_buffers(),
+        reply_.to_buffers(),
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                if (request_.accept()) {
+                if (reply_.accept() && (request_.cd() == 1 || reply_.addr() != "0.0.0.0")) {
                     do_read(0);
                     do_read(1);
                 }
@@ -193,17 +217,18 @@ void Session::write_reply(uint8_t command)
 
 void Session::show_info()
 {
-    cout << "<S_IP>\t:" << src_socket_.remote_endpoint().address() << endl;
-    cout << "<S_PORT>\t:" << src_socket_.remote_endpoint().port() << endl;
-    cout << "<D_IP>\t:" << request_.addr() << endl;
-    cout << "<D_PORT>\t:" << request_.port() << endl;
-    cout << "<Command>\t:" << (request_.command() == 1 ? "CONNECT" : "BIND") << endl;
-    cout << "<Reply>\t:" << (request_.reply() == 90 ? "ACCEPT" : "REJECT") << endl;
-    cout << "<Content>\t:" << string(src_buffer_.data(), 100) << endl;;
+    cout << "================================================================" << endl;
+    cout << "<S_IP>\t\t: " << src_socket_.remote_endpoint().address() << endl;
+    cout << "<S_PORT>\t: " << src_socket_.remote_endpoint().port() << endl;
+    cout << "<D_IP>\t\t: " << request_.addr() << endl;
+    cout << "<D_PORT>\t: " << request_.port() << endl;
+    cout << "<Command>\t: " << (request_.cd() == 1 ? "CONNECT" : "BIND") << endl;
+    cout << "<Reply>\t\t: " << (reply_.cd() == 90 ? "ACCEPT" : "REJECT") << endl;
+    cout << "<Content>\t: " << "'" << string(src_buffer_.data(), 20) << "' | '" << string(dst_buffer_.data(), 20) << "'" << endl;;
+    cout << "================================================================" << endl << endl;
 }
 
-// 0: send, 1: recv
-void Session::do_read(short target)
+void Session::do_read(bool target)
 {
     auto self(shared_from_this());
 
@@ -218,7 +243,7 @@ void Session::do_read(short target)
                     show_info();
                     flag = false;
                 }
-                do_write((target == 0 ? 1 : 0), length);
+                do_write(!target, length);
             } else {
                 cerr << "do_read: " << ec.message() << endl;
             }
@@ -226,18 +251,19 @@ void Session::do_read(short target)
     );
 }
 
-void Session::do_write(short target, size_t length)
+void Session::do_write(bool target, size_t length)
 {
     auto self(shared_from_this());
 
     ip::tcp::socket &socket = (target == 0 ? src_socket_ : dst_socket_);
     array<char, MAX_BUF_LENGTH> &buf = (target == 0 ? dst_buffer_ : src_buffer_);
 
-    socket.async_write_some(
+    async_write(
+        socket,
         buffer(buf, length),
         [this, self, target](boost::system::error_code ec, size_t) {
             if (!ec) {
-                do_read((target == 0 ? 1 : 0));
+                do_read(!target);
             } else {
                 cerr << "do_write: " << ec.message() << endl;
             }
