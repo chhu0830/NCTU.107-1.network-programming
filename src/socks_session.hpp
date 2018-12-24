@@ -3,38 +3,53 @@
 using namespace std;
 using namespace boost::asio;
 
-class Request {
-    private:
-        enum { MAX_USERID_LENGTH = 1024 };
-        uint8_t vn_;
-        uint8_t cd_;
-        uint16_t port_;
-        array<uint8_t, 4> addr_;
-        array<char, MAX_USERID_LENGTH> userid_;
+struct Request {
+    uint8_t vn;
+    uint8_t cd;
+    uint16_t port;
+    ip::address_v4::bytes_type addr;
+    boost::asio::streambuf userid;
 
-    public:
-        Request();
-        Request(uint8_t vn, uint8_t cd, uint16_t port, array<uint8_t, 4> addr);
-        vector<mutable_buffer> to_buffers();
-        mutable_buffer userid_to_buffer();
-        void show();
-        uint8_t vn();
-        uint8_t cd();
-        uint16_t port();
-        string addr();
-        string userid();
-        bool accept();
-        void vn(uint8_t version);
-        void cd(uint8_t command);
-        void port(uint16_t port);
-        void addr(array<uint8_t, 4> addr);
-        // uint8_t& addr(int i);
+    Request() {}
+
+    vector<mutable_buffer> to_buffers()
+    {
+        return {
+            buffer(&vn, sizeof(vn)),
+            buffer(&cd, sizeof(cd)),
+            buffer(&port, sizeof(port)),
+            buffer(addr)
+        };
+    }
+};
+
+struct Reply {
+    uint8_t vn;
+    uint8_t cd;
+    uint16_t port;
+    ip::address_v4::bytes_type addr;
+
+    Reply() {}
+
+    Reply(uint8_t vn, uint8_t cd, uint16_t port, ip::address_v4::bytes_type addr) :
+        vn(vn), cd(cd), port(port), addr(addr) {}
+
+    vector<mutable_buffer> to_buffers()
+    {
+        return {
+            buffer(&vn, sizeof(vn)),
+            buffer(&cd, sizeof(cd)),
+            buffer(&port, sizeof(port)),
+            buffer(addr)
+        };
+    }
 };
 
 class Session : public enable_shared_from_this<Session> {
     private:
         enum { MAX_BUF_LENGTH = 4096 };
-        Request request_, reply_;
+        Request request_;
+        Reply reply_;
         ip::tcp::socket src_socket_, dst_socket_;
         ip::tcp::resolver resolver_;
         ip::tcp::acceptor acceptor_;

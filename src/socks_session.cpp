@@ -4,89 +4,6 @@
 
 extern io_service global_io_service;
 
-/*========== Request ==========*/
-Request::Request() {}
-
-Request::Request(uint8_t vn, uint8_t cd, uint16_t port, array<uint8_t, 4> addr) :
-    vn_(vn), cd_(cd), port_(port), addr_(addr) {}
-
-vector<mutable_buffer> Request::to_buffers()
-{
-    return {
-        buffer(&vn_, sizeof(vn_)),
-        buffer(&cd_, sizeof(cd_)),
-        buffer(&port_, sizeof(port_)),
-        buffer(addr_)
-    };
-}
-
-void Request::show()
-{
-    cerr << "====================" << endl;
-    cerr << "VN:\t" << unsigned(vn()) << endl;
-    cerr << "CD:\t" << unsigned(cd()) << endl;
-    cerr << "PORT:\t" << port() << endl;
-    cerr << "IP:\t" << addr() << endl;
-    cerr << "ID:\t" << userid() << endl;
-    cerr << "====================" << endl << endl;
-}
-
-mutable_buffer Request::userid_to_buffer()
-{
-    return buffer(&userid_, MAX_USERID_LENGTH);
-}
-
-uint8_t Request::vn()
-{
-    return vn_;
-}
-
-uint8_t Request::cd()
-{
-    return cd_;
-}
-
-uint16_t Request::port()
-{
-    return ntohs(port_);
-}
-
-string Request::addr()
-{
-    return to_string(addr_[0]) + "." + to_string(addr_[1]) + "." + to_string(addr_[2]) + "." + to_string(addr_[3]);
-}
-
-string Request::userid()
-{
-    return string(userid_.data());
-}
-
-bool Request::accept()
-{
-    return (cd_ == 90);
-}
-
-void Request::vn(uint8_t version)
-{
-    vn_ = version;
-}
-
-void Request::cd(uint8_t cd)
-{
-    cd_ = cd;
-}
-
-void Request::port(uint16_t port)
-{
-    port_ = port;
-}
-
-void Request::addr(array<uint8_t, 4> addr)
-{
-    addr_ = addr;
-}
-
-/*========== Session ==========*/
 Session::Session(ip::tcp::socket socket) :
     src_socket_(move(socket)),
     dst_socket_(global_io_service),
@@ -117,15 +34,17 @@ void Session::read_request()
 void Session::read_userid()
 {
     auto self(shared_from_this());
-    src_socket_.async_read_some(
-        request_.userid_to_buffer(),
+    async_read_until(
+        src_socket_,
+        request_.userid,
+        "\x00",
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                if (request_.cd() == 1) {
+                if (request_.cd == 1) {
                     do_resolve();
                 } else {
                     do_accept();
-                    reply_ = Request(0, 90, htons(acceptor_.local_endpoint().port()), {0, 0, 0, 0});
+                    reply_ = Reply(0, 90, htons(acceptor_.local_endpoint().port()), {0, 0, 0, 0});
 
                     async_write(
                         src_socket_,
@@ -151,7 +70,7 @@ void Session::do_accept()
         dst_socket_,
         [this, self](boost::system::error_code ec) {
             if (!ec) {
-                if (request_.addr() == dst_socket_.remote_endpoint().address().to_string()) {
+                if (ip::address_v4(request_.addr) == dst_socket_.remote_endpoint().address()) {
                     write_reply(90);
                 } else {
                     write_reply(91);
@@ -167,7 +86,7 @@ void Session::do_resolve()
 {
     auto self(shared_from_this());
     resolver_.async_resolve(
-        ip::tcp::resolver::query(request_.addr(), to_string(request_.port())),
+        ip::tcp::resolver::query(ip::address_v4(request_.addr).to_string(), to_string(ntohs(request_.port))),
         [this, self](boost::system::error_code ec, ip::tcp::resolver::iterator it) {
             if (!ec) {
                 do_connect(it);
@@ -199,10 +118,7 @@ void Session::do_connect(ip::tcp::resolver::iterator it)
 void Session::write_reply(uint8_t cd)
 {
     auto self(shared_from_this());
-
-    reply_ = request_;
-    reply_.vn(0);
-    reply_.cd(cd);
+    reply_ = Reply(0, cd, request_.port, request_.addr);
 
     async_write(
         src_socket_,
@@ -223,10 +139,10 @@ void Session::show_info()
     cout << "================================================================" << endl;
     cout << "<S_IP>\t\t: " << src_socket_.remote_endpoint().address() << endl;
     cout << "<S_PORT>\t: " << src_socket_.remote_endpoint().port() << endl;
-    cout << "<D_IP>\t\t: " << request_.addr() << endl;
-    cout << "<D_PORT>\t: " << request_.port() << endl;
-    cout << "<Command>\t: " << (request_.cd() == 1 ? "CONNECT" : "BIND") << endl;
-    cout << "<Reply>\t\t: " << (reply_.cd() == 90 ? "ACCEPT" : "REJECT") << endl;
+    cout << "<D_IP>\t\t: " << ip::address_v4(request_.addr) << endl;
+    cout << "<D_PORT>\t: " << ntohs(request_.port) << endl;
+    cout << "<Command>\t: " << (request_.cd == 1 ? "CONNECT" : "BIND") << endl;
+    cout << "<Reply>\t\t: " << (reply_.cd == 90 ? "ACCEPT" : "REJECT") << endl;
     cout << "<Content>\t: " << "'" << string(src_buffer_.data(), 20) << "' | '" << string(dst_buffer_.data(), 20) << "'" << endl;;
     cout << "================================================================" << endl << endl;
 }
