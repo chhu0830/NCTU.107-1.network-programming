@@ -3,7 +3,7 @@ CXXFLAGS			+= -I/usr/local/include -std=c++11 -Wall -Wextra -pedantic -MMD -MF $
 LDFLAGS				+= -L/usr/local/lib -lboost_system -lboost_filesystem -pthread
 
 STUDENT_ID			:= 0756020
-EXECUTABLE			:= socks_server
+EXECUTABLE			:= socks_server hw4.cgi
 
 OUT					?= .build
 SRCS				:= $(wildcard *.cpp */*.cpp)
@@ -15,6 +15,9 @@ containing			= $(foreach v,$(2),$(if $(findstring $(1),$(v)),$(v),))
 all: $(EXECUTABLE)
 
 socks_server: $(call containing,socks,$(OBJS))
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+hw4.cgi: $(call containing,console,$(OBJS))
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 $(OUT)/%.o: %.cpp
