@@ -126,7 +126,16 @@ void Session::read_userid()
                 } else {
                     do_accept();
                     reply_ = Request(0, 90, htons(acceptor_.local_endpoint().port()), {0, 0, 0, 0});
-                    write_reply();
+
+                    async_write(
+                        src_socket_,
+                        reply_.to_buffers(),
+                        [this, self](boost::system::error_code ec, size_t) {
+                            if (ec) {
+                                cerr << "read_userid(async_write): " << ec.message() << endl;
+                            }
+                        }
+                    );
                 }
             } else {
                 cerr << "read_userid: " << ec.message() << endl;
@@ -142,16 +151,11 @@ void Session::do_accept()
         dst_socket_,
         [this, self](boost::system::error_code ec) {
             if (!ec) {
-                reply_ = request_;
-                reply_.vn(0);
-
                 if (request_.addr() == dst_socket_.remote_endpoint().address().to_string()) {
-                    reply_.cd(90);
+                    write_reply(90);
                 } else {
-                    reply_.cd(91);
+                    write_reply(91);
                 }
-
-                write_reply();
             } else {
                 cerr << "do_accept: " << ec.message() << endl;
             }
@@ -181,33 +185,32 @@ void Session::do_connect(ip::tcp::resolver::iterator it)
         dst_socket_,
         it,
         [this, self](boost::system::error_code ec, ip::tcp::resolver::iterator) {
-            reply_ = request_;
-            reply_.vn(0);
-
             if (!ec) {
-                reply_.cd(90);
+                write_reply(90);
             } else {
                 cerr << "do_connect: " << ec.message() << endl;
-                reply_.cd(91);
+                write_reply(91);
             }
 
-            write_reply();
         }
     );
 }
 
-void Session::write_reply()
+void Session::write_reply(uint8_t cd)
 {
     auto self(shared_from_this());
 
-    src_socket_.async_write_some(
+    reply_ = request_;
+    reply_.vn(0);
+    reply_.cd(cd);
+
+    async_write(
+        src_socket_,
         reply_.to_buffers(),
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                if (reply_.accept() && (request_.cd() == 1 || reply_.addr() != "0.0.0.0")) {
-                    do_read(0);
-                    do_read(1);
-                }
+                do_read(0);
+                do_read(1);
             } else {
                 cerr << "write_reply: " << ec.message() << endl;
             }

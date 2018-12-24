@@ -48,7 +48,7 @@ class Session : public enable_shared_from_this<Session> {
     private:
         void read_request();
         void read_userid();
-        void write_reply();
+        void write_reply(uint8_t cd);
         void show_info();
         void do_accept();
         void do_resolve();
