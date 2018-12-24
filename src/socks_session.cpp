@@ -249,6 +249,8 @@ void Session::do_read(bool target)
                 do_write(!target, length);
             } else {
                 cerr << "do_read: " << ec.message() << endl;
+                src_socket_.close();
+                dst_socket_.close();
             }
         }
     );
