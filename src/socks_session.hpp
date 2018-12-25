@@ -43,6 +43,11 @@ struct Reply {
             buffer(addr)
         };
     }
+
+    bool accept()
+    {
+        return (cd == 90);
+    }
 };
 
 class Session : public enable_shared_from_this<Session> {
@@ -50,6 +55,7 @@ class Session : public enable_shared_from_this<Session> {
         enum { MAX_BUF_LENGTH = 4096 };
         Request request_;
         Reply reply_;
+        vector<array<string, 4>> permits_[2];
         ip::tcp::socket src_socket_, dst_socket_;
         ip::tcp::resolver resolver_;
         ip::tcp::acceptor acceptor_;
@@ -61,10 +67,12 @@ class Session : public enable_shared_from_this<Session> {
         void start();
 
     private:
+        void read_config();
         void read_request();
         void read_userid();
         void write_reply(uint8_t cd);
         void show_info();
+        bool permit(int mode, ip::address_v4::bytes_type &addr);
         void do_accept();
         void do_resolve();
         void do_connect(ip::tcp::resolver::iterator it);

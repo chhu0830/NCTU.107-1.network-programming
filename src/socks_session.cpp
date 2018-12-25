@@ -1,5 +1,7 @@
 #include "socks_session.hpp"
 #include <iostream>
+#include <fstream>
+#include <regex>
 #include "socks_server.hpp"
 
 extern io_service global_io_service;
@@ -13,7 +15,27 @@ Session::Session(ip::tcp::socket socket) :
 
 void Session::start()
 {
+    read_config();
     read_request();
+}
+
+void Session::read_config()
+{
+    ifstream fin("socks.conf", ifstream::in);
+    string s;
+    smatch m;
+
+    while (getline(fin, s)) {
+        if (regex_match(s, m, regex("([a-zA-Z]+) ([bc]) ([*0-9]{1,3})\\.([*0-9]{1,3})\\.([*0-9]{1,3})\\.([*0-9]{1,3}).*"))) {
+            if (m.str(1) == "permit") {
+                if (m.str(2) == "c") {
+                    permits_[0].push_back({m.str(3), m.str(4), m.str(5), m.str(6)});
+                } else if (m.str(2) == "b") {
+                    permits_[1].push_back({m.str(3), m.str(4), m.str(5), m.str(6)});
+                }
+            }
+        }
+    }
 }
 
 void Session::read_request()
@@ -40,27 +62,44 @@ void Session::read_userid()
         "\x00",
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                if (request_.cd == 1) {
-                    do_resolve();
-                } else {
-                    do_accept();
-                    reply_ = Reply(0, 90, htons(acceptor_.local_endpoint().port()), {0, 0, 0, 0});
+                if (permit(request_.cd, request_.addr)) {
+                    if (request_.cd == 1) {
+                        do_resolve();
+                    } else if (request_.cd == 2) {
+                        do_accept();
+                        reply_ = Reply(0, 90, htons(acceptor_.local_endpoint().port()), {0, 0, 0, 0});
 
-                    async_write(
-                        src_socket_,
-                        reply_.to_buffers(),
-                        [this, self](boost::system::error_code ec, size_t) {
-                            if (ec) {
-                                cerr << "read_userid(async_write): " << ec.message() << endl;
+                        async_write(
+                            src_socket_,
+                            reply_.to_buffers(),
+                            [this, self](boost::system::error_code ec, size_t) {
+                                if (ec) {
+                                    cerr << "read_userid(async_write): " << ec.message() << endl;
+                                }
                             }
-                        }
-                    );
+                        );
+                    }
+                } else {
+                    write_reply(91);
                 }
             } else {
                 cerr << "read_userid: " << ec.message() << endl;
             }
         }
     );
+}
+
+bool Session::permit(int mode, ip::address_v4::bytes_type &addr)
+{
+    for (auto &i : permits_[(mode == 1 ? 0 : 1)]) {
+        bool flag = true;
+        for (int j = 0; flag && j < 4; j++) {
+            flag = (i[j] == "*" || i[j] == to_string(addr[j]));
+        }
+        if (flag) return true;
+    }
+
+    return false;
 }
 
 void Session::do_accept()
@@ -125,8 +164,10 @@ void Session::write_reply(uint8_t cd)
         reply_.to_buffers(),
         [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
-                do_read(0);
-                do_read(1);
+                if (reply_.accept()) {
+                    do_read(0);
+                    do_read(1);
+                }
             } else {
                 cerr << "write_reply: " << ec.message() << endl;
             }
