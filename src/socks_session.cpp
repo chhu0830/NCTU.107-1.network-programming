@@ -59,8 +59,8 @@ void Session::read_userid()
     async_read_until(
         src_socket_,
         request_.userid,
-        "\x00",
-        [this, self](boost::system::error_code ec, size_t) {
+        '\x00',
+        [this, self](boost::system::error_code ec, size_t length) {
             if (!ec) {
                 if (permit(request_.cd, request_.addr)) {
                     if (request_.cd == 1) {
