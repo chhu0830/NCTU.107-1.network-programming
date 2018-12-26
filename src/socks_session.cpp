@@ -60,7 +60,7 @@ void Session::read_userid()
         src_socket_,
         request_.userid,
         '\x00',
-        [this, self](boost::system::error_code ec, size_t length) {
+        [this, self](boost::system::error_code ec, size_t) {
             if (!ec) {
                 if (permit(request_.cd, request_.addr)) {
                     if (request_.cd == 1) {
@@ -205,9 +205,8 @@ void Session::do_read(bool target)
                 }
                 do_write(!target, length);
             } else {
-                cerr << "do_read: " << ec.message() << endl;
-                src_socket_.close();
-                dst_socket_.close();
+                cerr << "do_read(" << target << "): " << ec.message() << endl;
+                target == 0 ? dst_socket_.close() : src_socket_.close();
             }
         }
     );
