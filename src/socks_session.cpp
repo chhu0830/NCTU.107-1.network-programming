@@ -10,8 +10,7 @@ Session::Session(ip::tcp::socket socket) :
     src_socket_(move(socket)),
     dst_socket_(global_io_service),
     resolver_(global_io_service),
-    acceptor_(global_io_service, ip::tcp::endpoint(ip::tcp::v4(), 0)),
-    flag(true) {}
+    acceptor_(global_io_service, ip::tcp::endpoint(ip::tcp::v4(), 0)) {}
 
 void Session::start()
 {
@@ -67,20 +66,10 @@ void Session::read_userid()
                         do_resolve();
                     } else if (request_.cd == 2) {
                         do_accept();
-                        reply_ = Reply(0, 90, htons(acceptor_.local_endpoint().port()), {0, 0, 0, 0});
-
-                        async_write(
-                            src_socket_,
-                            reply_.to_buffers(),
-                            [this, self](boost::system::error_code ec, size_t) {
-                                if (ec) {
-                                    cerr << "read_userid(async_write): " << ec.message() << endl;
-                                }
-                            }
-                        );
+                        write_reply(90, 2);
                     }
                 } else {
-                    write_reply(91);
+                    write_reply(91, request_.cd);
                 }
             } else {
                 cerr << "read_userid: " << ec.message() << endl;
@@ -154,17 +143,24 @@ void Session::do_connect(ip::tcp::resolver::iterator it)
     );
 }
 
-void Session::write_reply(uint8_t cd)
+void Session::write_reply(uint8_t cd, uint8_t mode)
 {
     auto self(shared_from_this());
-    reply_ = Reply(0, cd, request_.port, request_.addr);
+
+    if (mode == 1) {
+        reply_ = Reply(0, cd, request_.port, request_.addr);
+    } else if (mode == 2) {
+        reply_ = Reply(0, cd, htons(acceptor_.local_endpoint().port()), acceptor_.local_endpoint().address().to_v4().to_bytes());
+    }
+
+    show_info();
 
     async_write(
         src_socket_,
         reply_.to_buffers(),
-        [this, self](boost::system::error_code ec, size_t) {
+        [this, self, mode](boost::system::error_code ec, size_t) {
             if (!ec) {
-                if (reply_.accept()) {
+                if (reply_.accept() && mode == 1) {
                     do_read(0);
                     do_read(1);
                 }
@@ -177,15 +173,15 @@ void Session::write_reply(uint8_t cd)
 
 void Session::show_info()
 {
-    cout << "================================================================" << endl;
+    if (src_socket_.is_open() == false) return;
+    cout << "================================================" << endl;
     cout << "<S_IP>\t\t: " << src_socket_.remote_endpoint().address() << endl;
     cout << "<S_PORT>\t: " << src_socket_.remote_endpoint().port() << endl;
     cout << "<D_IP>\t\t: " << ip::address_v4(request_.addr) << endl;
     cout << "<D_PORT>\t: " << ntohs(request_.port) << endl;
     cout << "<Command>\t: " << (request_.cd == 1 ? "CONNECT" : "BIND") << endl;
     cout << "<Reply>\t\t: " << (reply_.cd == 90 ? "ACCEPT" : "REJECT") << endl;
-    cout << "<Content>\t: " << "'" << string(src_buffer_.data(), 20) << "' | '" << string(dst_buffer_.data(), 20) << "'" << endl;;
-    cout << "================================================================" << endl << endl;
+    cout << "================================================" << endl << endl;
 }
 
 void Session::do_read(bool target)
@@ -199,10 +195,6 @@ void Session::do_read(bool target)
         buffer(buf),
         [this, self, target](boost::system::error_code ec, size_t length) {
             if (!ec) {
-                if (flag) {
-                    show_info();
-                    flag = false;
-                }
                 do_write(!target, length);
             } else {
                 cerr << "do_read(" << target << "): " << ec.message() << endl;

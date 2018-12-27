@@ -60,7 +60,6 @@ class Session : public enable_shared_from_this<Session> {
         ip::tcp::resolver resolver_;
         ip::tcp::acceptor acceptor_;
         array<char, MAX_BUF_LENGTH> src_buffer_, dst_buffer_;
-        bool flag;
 
     public:
         Session(ip::tcp::socket socket);
@@ -70,7 +69,7 @@ class Session : public enable_shared_from_this<Session> {
         void read_config();
         void read_request();
         void read_userid();
-        void write_reply(uint8_t cd);
+        void write_reply(uint8_t cd, uint8_t mode = 1);
         void show_info();
         bool permit(int mode, ip::address_v4::bytes_type &addr);
         void do_accept();
