@@ -25,12 +25,23 @@ void Session::read_config()
     smatch m;
 
     while (getline(fin, s)) {
-        if (regex_match(s, m, regex("([a-zA-Z]+) ([bc]) ([*0-9]{1,3})\\.([*0-9]{1,3})\\.([*0-9]{1,3})\\.([*0-9]{1,3}).*"))) {
+        if (regex_match(s, m, regex("([a-zA-Z]+) ([bc]) ([0-9]{1,3}|\\*)\\.([0-9]{1,3}|\\*)\\.([0-9]{1,3}|\\*)\\.([0-9]{1,3}|\\*)[ \\t]*(?:#.*)?"))) {
             if (m.str(1) == "permit") {
+                int ip = 0, mask = 0;
+
+                for (int i = 3; i < 7; i++) {
+                    if (m.str(i) != "*") {
+                        ip |= stoi(m.str(i));
+                        mask |= 255;
+                    }
+                    ip <<= 8;
+                    mask <<= 8;
+                }
+
                 if (m.str(2) == "c") {
-                    permits_[0].push_back({m.str(3), m.str(4), m.str(5), m.str(6)});
+                    permits_[0].push_back(pair<int, int>(ip, mask));
                 } else if (m.str(2) == "b") {
-                    permits_[1].push_back({m.str(3), m.str(4), m.str(5), m.str(6)});
+                    permits_[1].push_back(pair<int, int>(ip, mask));
                 }
             }
         }
@@ -80,12 +91,14 @@ void Session::read_userid()
 
 bool Session::permit(int mode, ip::address_v4::bytes_type &addr)
 {
+    int dst = 0;
+
+    for (auto &i : addr) {
+        dst |= i;
+        dst <<= 8;
+    }
     for (auto &i : permits_[(mode == 1 ? 0 : 1)]) {
-        bool flag = true;
-        for (int j = 0; flag && j < 4; j++) {
-            flag = (i[j] == "*" || i[j] == to_string(addr[j]));
-        }
-        if (flag) return true;
+        if (i.first == (dst & i.second)) return true;
     }
 
     return false;
@@ -174,14 +187,14 @@ void Session::write_reply(uint8_t cd, uint8_t mode)
 void Session::show_info()
 {
     if (src_socket_.is_open() == false) return;
-    cout << "================================================" << endl;
+    cerr << "================================================" << endl;
     cout << "<S_IP>\t\t: " << src_socket_.remote_endpoint().address() << endl;
     cout << "<S_PORT>\t: " << src_socket_.remote_endpoint().port() << endl;
     cout << "<D_IP>\t\t: " << ip::address_v4(request_.addr) << endl;
     cout << "<D_PORT>\t: " << ntohs(request_.port) << endl;
     cout << "<Command>\t: " << (request_.cd == 1 ? "CONNECT" : "BIND") << endl;
-    cout << "<Reply>\t\t: " << (reply_.cd == 90 ? "ACCEPT" : "REJECT") << endl;
-    cout << "================================================" << endl << endl;
+    cout << "<Reply>\t\t: " << (reply_.cd == 90 ? "ACCEPT" : "REJECT") << endl << endl;
+    cerr << "================================================" << endl << endl;
 }
 
 void Session::do_read(bool target)

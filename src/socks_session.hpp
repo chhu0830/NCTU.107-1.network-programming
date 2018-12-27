@@ -55,7 +55,7 @@ class Session : public enable_shared_from_this<Session> {
         enum { MAX_BUF_LENGTH = 4096 };
         Request request_;
         Reply reply_;
-        vector<array<string, 4>> permits_[2];
+        vector<pair<int, int>> permits_[2];
         ip::tcp::socket src_socket_, dst_socket_;
         ip::tcp::resolver resolver_;
         ip::tcp::acceptor acceptor_;
